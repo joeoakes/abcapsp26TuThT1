@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <uuid/uuid.h>
 
 #define MAZE_W 21   // number of cells horizontally
 #define MAZE_H 15   // number of cells vertically
@@ -23,6 +24,44 @@ typedef struct {
 } Cell;
 
 static Cell g[MAZE_H][MAZE_W];
+
+// Stores a session ID for all of the moves
+static char session_id[37];
+
+// Gets time in ISO-18601
+static void get_iso8601_time(char* buf, size_t len){
+    time_t now = time(NULL);
+    struct tm* gmt = gmtime(&now);
+    strftime(buf, len, "%Y-%m-%dT%H:%M:%SZ", gmt);
+}
+
+// Save moves as JSON file
+static void save_json_move(const char* session_id, int px, int py, int move_sequence, bool goal_reached) {
+  char timestamp[32];
+  get_iso8601_time(timestamp, sizeof(timestamp));
+
+  FILE *f = fopen("maze_moves.json", "a");
+  if (!f) {
+    fprintf(stderr, "ERROR: Could not open maze_moves.json for writing!\n");
+    return;
+  }
+
+  fprintf(f,
+      "{\n"
+      "  \"session_id\": \"%s\",\n"
+      "  \"event_type\": \"player_move\",\n"
+      "  \"input\": {\"device\": \"joystick\", \"move_sequence\": %d},\n"
+      "  \"player\": {\"position\": {\"x\": %d, \"y\": %d}},\n"
+      "  \"goal_reached\": %s,\n"
+      "  \"timestamp\": \"%s\"\n"
+      "}\n\n",
+      session_id, move_sequence, px, py, goal_reached ? "true" : "false", timestamp
+  );
+
+  fclose(f);
+  printf("Saved move #%d: (%d,%d)\n", move_sequence, px, py);
+}
+
 
 static inline bool in_bounds(int x, int y) {
   return (x >= 0 && x < MAZE_W && y >= 0 && y < MAZE_H);
@@ -188,6 +227,10 @@ int main(int argc, char** argv) {
   (void)argc; (void)argv;
   srand((unsigned)time(NULL));
 
+  // Generates session UUID
+  uuid_t binuuid; uuid_generate_random(binuuid);
+  uuid_unparse_lower(binuuid, session_id);
+
   if (SDL_Init(SDL_INIT_VIDEO) != 0) {
     fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
     return 1;
@@ -217,6 +260,7 @@ int main(int argc, char** argv) {
   }
 
   int px = 0, py = 0;
+  int move_sequence = 0; // Tracks the number of moves
   regenerate(&px, &py, win);
 
   bool running = true;
@@ -235,13 +279,21 @@ int main(int argc, char** argv) {
         if (k == SDLK_r) {
           regenerate(&px, &py, win);
           won = false;
+          move_sequence = 0; // Resets the move counter
         }
 
         if (!won) {
-          if (k == SDLK_UP || k == SDLK_w)    try_move(&px, &py, 0, -1);
-          if (k == SDLK_RIGHT || k == SDLK_d) try_move(&px, &py, 1, 0);
-          if (k == SDLK_DOWN || k == SDLK_s)  try_move(&px, &py, 0, 1);
-          if (k == SDLK_LEFT || k == SDLK_a)  try_move(&px, &py, -1, 0);
+          bool moved = false; // Tracks if player moved
+
+          if (k == SDLK_UP || k == SDLK_w)    moved |= try_move(&px, &py, 0, -1);
+          if (k == SDLK_RIGHT || k == SDLK_d) moved |= try_move(&px, &py, 1, 0);
+          if (k == SDLK_DOWN || k == SDLK_s)  moved |= try_move(&px, &py, 0, 1);
+          if (k == SDLK_LEFT || k == SDLK_a)  moved |= try_move(&px, &py, -1, 0);
+
+          if (moved) {
+            move_sequence++;
+            save_json_move(session_id, px, py, move_sequence, (px == MAZE_W-1 && py == MAZE_H-1));
+          }
 
           if (px == MAZE_W - 1 && py == MAZE_H - 1) {
             won = true;
