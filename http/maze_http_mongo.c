@@ -57,7 +57,7 @@ static const char* getenv_or(const char* k, const char* defv) {
   return (v && *v) ? v : defv;
 }
 
-static int respond_text(struct MHD_Connection* connection, unsigned int status, const char* text) {
+static enum MHD_Result respond_text(struct MHD_Connection* connection, unsigned int status, const char* text) {
   struct MHD_Response* response = MHD_create_response_from_buffer(
       strlen(text), (void*)text, MHD_RESPMEM_MUST_COPY);
   if (!response) return MHD_NO;
@@ -67,7 +67,7 @@ static int respond_text(struct MHD_Connection* connection, unsigned int status, 
   return ret;
 }
 
-static int respond_json(struct MHD_Connection* connection, unsigned int status, const char* json) {
+static enum MHD_Result respond_json(struct MHD_Connection* connection, unsigned int status, const char* json) {
   struct MHD_Response* response = MHD_create_response_from_buffer(
       strlen(json), (void*)json, MHD_RESPMEM_MUST_COPY);
   if (!response) return MHD_NO;
@@ -131,7 +131,7 @@ static bson_t* json_to_bson_with_received_at(const char* json, bson_error_t* err
   return doc;
 }
 
-static int handle_post_move(struct MHD_Connection* connection, MongoCtx* mctx, const char* body) {
+enum MHD_Result handle_post_move(struct MHD_Connection* connection, MongoCtx* mctx, const char* body) {
   if (!body || !*body) {
     return respond_text(connection, MHD_HTTP_BAD_REQUEST, "Empty request body\n");
   }
@@ -177,7 +177,7 @@ static int handle_post_move(struct MHD_Connection* connection, MongoCtx* mctx, c
   return respond_json(connection, MHD_HTTP_OK, out);
 }
 
-static int request_handler(void* cls,
+static enum MHD_Result request_handler(void* cls,
                            struct MHD_Connection* connection,
                            const char* url,
                            const char* method,

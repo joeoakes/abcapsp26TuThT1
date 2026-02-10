@@ -1,0 +1,13 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "C/C++ Runner: Debug Session",
+      "type": "lldb",
+      "request": "launch",
+      "args": [],
+      "cwd": "/Users/mostafa/abcapsp26TuThT1/http",
+      "program": "/Users/mostafa/abcapsp26TuThT1/http/build/Debug/outDebug"
+    }
+  ]
+}
