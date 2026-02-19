@@ -168,7 +168,13 @@ int main(void) {
         return 1;
     }
 
-    printf("HTTPS server listening on https://localhost:%d/move\n", DEFAULT_PORT);
+    	printf("Listening on https://0.0.0.0:%d\n", DEFAULT_PORT);
+	printf("Database backend: MongoDB\n");
+	printf("MongoDB URI: %s\n", config.mongo_uri);
+	printf("Database name: %s\n", config.mongo_db);
+	printf("Collection: %s\n", config.mongo_col);
+	printf("POST JSON to /move\n");
+
     getchar();
 
     MHD_stop_daemon(daemon);
