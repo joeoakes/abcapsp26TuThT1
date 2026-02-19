@@ -158,7 +158,15 @@ int main(void) {
         return 1;
     }
 
-    printf("HTTPS server listening on https://localhost:%d/move\n", DEFAULT_PORT);
+    	printf("========================================\n");
+	printf("Database backend: Redis\n");
+	printf("Redis host: 127.0.0.1\n");
+	printf("Redis port: 6379\n");
+	printf("Key namespace example: team1ttmission\n");
+	printf("========================================\n\n");
+
+	printf("HTTPS Redis mission server running on port %d\n", DEFAULT_PORT);
+
     getchar();
 
     MHD_stop_daemon(daemon);
