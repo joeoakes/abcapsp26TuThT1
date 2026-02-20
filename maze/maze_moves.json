@@ -1,0 +1,576 @@
+{
+  "session_id": "4a727da8-7099-44eb-b81f-d9bbd94bc5e3",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 1},
+  "player": {"position": {"x": 0, "y": 1}},
+  "goal_reached": false,
+  "timestamp": "2026-02-12T23:27:33Z"
+}
+
+{
+  "session_id": "4a727da8-7099-44eb-b81f-d9bbd94bc5e3",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 2},
+  "player": {"position": {"x": 1, "y": 1}},
+  "goal_reached": false,
+  "timestamp": "2026-02-12T23:27:33Z"
+}
+
+{
+  "session_id": "4a727da8-7099-44eb-b81f-d9bbd94bc5e3",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 3},
+  "player": {"position": {"x": 1, "y": 2}},
+  "goal_reached": false,
+  "timestamp": "2026-02-12T23:27:34Z"
+}
+
+{
+  "session_id": "4a727da8-7099-44eb-b81f-d9bbd94bc5e3",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 4},
+  "player": {"position": {"x": 1, "y": 3}},
+  "goal_reached": false,
+  "timestamp": "2026-02-12T23:27:38Z"
+}
+
+{
+  "session_id": "4a727da8-7099-44eb-b81f-d9bbd94bc5e3",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 5},
+  "player": {"position": {"x": 0, "y": 3}},
+  "goal_reached": false,
+  "timestamp": "2026-02-12T23:27:39Z"
+}
+
+{
+  "session_id": "4a727da8-7099-44eb-b81f-d9bbd94bc5e3",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 6},
+  "player": {"position": {"x": 0, "y": 4}},
+  "goal_reached": false,
+  "timestamp": "2026-02-12T23:27:40Z"
+}
+
+{
+  "session_id": "4a727da8-7099-44eb-b81f-d9bbd94bc5e3",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 7},
+  "player": {"position": {"x": 1, "y": 4}},
+  "goal_reached": false,
+  "timestamp": "2026-02-12T23:27:40Z"
+}
+
+{
+  "session_id": "4a727da8-7099-44eb-b81f-d9bbd94bc5e3",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 8},
+  "player": {"position": {"x": 1, "y": 5}},
+  "goal_reached": false,
+  "timestamp": "2026-02-12T23:27:41Z"
+}
+
+{
+  "session_id": "4a727da8-7099-44eb-b81f-d9bbd94bc5e3",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 9},
+  "player": {"position": {"x": 1, "y": 6}},
+  "goal_reached": false,
+  "timestamp": "2026-02-12T23:32:33Z"
+}
+
+{
+  "session_id": "4a727da8-7099-44eb-b81f-d9bbd94bc5e3",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 10},
+  "player": {"position": {"x": 1, "y": 7}},
+  "goal_reached": false,
+  "timestamp": "2026-02-12T23:32:33Z"
+}
+
+{
+  "session_id": "4a727da8-7099-44eb-b81f-d9bbd94bc5e3",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 11},
+  "player": {"position": {"x": 1, "y": 8}},
+  "goal_reached": false,
+  "timestamp": "2026-02-12T23:32:33Z"
+}
+
+{
+  "session_id": "4a727da8-7099-44eb-b81f-d9bbd94bc5e3",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 12},
+  "player": {"position": {"x": 0, "y": 8}},
+  "goal_reached": false,
+  "timestamp": "2026-02-12T23:32:33Z"
+}
+
+{
+  "session_id": "4a727da8-7099-44eb-b81f-d9bbd94bc5e3",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 13},
+  "player": {"position": {"x": 0, "y": 7}},
+  "goal_reached": false,
+  "timestamp": "2026-02-12T23:32:34Z"
+}
+
+{
+  "session_id": "4a727da8-7099-44eb-b81f-d9bbd94bc5e3",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 14},
+  "player": {"position": {"x": 0, "y": 6}},
+  "goal_reached": false,
+  "timestamp": "2026-02-12T23:32:35Z"
+}
+
+{
+  "session_id": "4a727da8-7099-44eb-b81f-d9bbd94bc5e3",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 15},
+  "player": {"position": {"x": 0, "y": 7}},
+  "goal_reached": false,
+  "timestamp": "2026-02-12T23:40:40Z"
+}
+
+{
+  "session_id": "4a727da8-7099-44eb-b81f-d9bbd94bc5e3",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 16},
+  "player": {"position": {"x": 0, "y": 8}},
+  "goal_reached": false,
+  "timestamp": "2026-02-12T23:40:41Z"
+}
+
+{
+  "session_id": "4a727da8-7099-44eb-b81f-d9bbd94bc5e3",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 17},
+  "player": {"position": {"x": 1, "y": 8}},
+  "goal_reached": false,
+  "timestamp": "2026-02-12T23:40:41Z"
+}
+
+{
+  "session_id": "4a727da8-7099-44eb-b81f-d9bbd94bc5e3",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 18},
+  "player": {"position": {"x": 1, "y": 7}},
+  "goal_reached": false,
+  "timestamp": "2026-02-12T23:40:42Z"
+}
+
+{
+  "session_id": "4a727da8-7099-44eb-b81f-d9bbd94bc5e3",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 19},
+  "player": {"position": {"x": 1, "y": 8}},
+  "goal_reached": false,
+  "timestamp": "2026-02-12T23:46:04Z"
+}
+
+{
+  "session_id": "4a727da8-7099-44eb-b81f-d9bbd94bc5e3",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 20},
+  "player": {"position": {"x": 0, "y": 8}},
+  "goal_reached": false,
+  "timestamp": "2026-02-12T23:46:05Z"
+}
+
+{
+  "session_id": "4a727da8-7099-44eb-b81f-d9bbd94bc5e3",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 21},
+  "player": {"position": {"x": 0, "y": 9}},
+  "goal_reached": false,
+  "timestamp": "2026-02-12T23:46:05Z"
+}
+
+{
+  "session_id": "4a727da8-7099-44eb-b81f-d9bbd94bc5e3",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 22},
+  "player": {"position": {"x": 0, "y": 10}},
+  "goal_reached": false,
+  "timestamp": "2026-02-12T23:47:17Z"
+}
+
+{
+  "session_id": "4a727da8-7099-44eb-b81f-d9bbd94bc5e3",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 23},
+  "player": {"position": {"x": 0, "y": 9}},
+  "goal_reached": false,
+  "timestamp": "2026-02-12T23:47:18Z"
+}
+
+{
+  "session_id": "4a727da8-7099-44eb-b81f-d9bbd94bc5e3",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 24},
+  "player": {"position": {"x": 0, "y": 8}},
+  "goal_reached": false,
+  "timestamp": "2026-02-12T23:47:19Z"
+}
+
+{
+  "session_id": "4a727da8-7099-44eb-b81f-d9bbd94bc5e3",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 25},
+  "player": {"position": {"x": 1, "y": 8}},
+  "goal_reached": false,
+  "timestamp": "2026-02-12T23:47:19Z"
+}
+
+{
+  "session_id": "8318329e-48ea-4688-bceb-a170bacfc281",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 1},
+  "player": {"position": {"x": 0, "y": 1}},
+  "goal_reached": false,
+  "timestamp": "2026-02-12T23:47:39Z"
+}
+
+{
+  "session_id": "8318329e-48ea-4688-bceb-a170bacfc281",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 2},
+  "player": {"position": {"x": 0, "y": 2}},
+  "goal_reached": false,
+  "timestamp": "2026-02-12T23:47:39Z"
+}
+
+{
+  "session_id": "8318329e-48ea-4688-bceb-a170bacfc281",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 3},
+  "player": {"position": {"x": 0, "y": 3}},
+  "goal_reached": false,
+  "timestamp": "2026-02-12T23:54:45Z"
+}
+
+{
+  "session_id": "8318329e-48ea-4688-bceb-a170bacfc281",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 4},
+  "player": {"position": {"x": 1, "y": 3}},
+  "goal_reached": false,
+  "timestamp": "2026-02-12T23:54:45Z"
+}
+
+{
+  "session_id": "8318329e-48ea-4688-bceb-a170bacfc281",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 5},
+  "player": {"position": {"x": 1, "y": 4}},
+  "goal_reached": false,
+  "timestamp": "2026-02-13T00:08:15Z"
+}
+
+{
+  "session_id": "8318329e-48ea-4688-bceb-a170bacfc281",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 6},
+  "player": {"position": {"x": 0, "y": 4}},
+  "goal_reached": false,
+  "timestamp": "2026-02-13T00:08:15Z"
+}
+
+{
+  "session_id": "8318329e-48ea-4688-bceb-a170bacfc281",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 7},
+  "player": {"position": {"x": 0, "y": 5}},
+  "goal_reached": false,
+  "timestamp": "2026-02-13T00:08:16Z"
+}
+
+{
+  "session_id": "8318329e-48ea-4688-bceb-a170bacfc281",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 8},
+  "player": {"position": {"x": 1, "y": 5}},
+  "goal_reached": false,
+  "timestamp": "2026-02-13T00:08:23Z"
+}
+
+{
+  "session_id": "c56004ae-0281-4c19-8d05-e4dd741dbfcc",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 1},
+  "player": {"position": {"x": 1, "y": 0}},
+  "goal_reached": false,
+  "timestamp": "2026-02-13T00:08:32Z"
+}
+
+{
+  "session_id": "c56004ae-0281-4c19-8d05-e4dd741dbfcc",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 2},
+  "player": {"position": {"x": 2, "y": 0}},
+  "goal_reached": false,
+  "timestamp": "2026-02-13T00:08:32Z"
+}
+
+{
+  "session_id": "c56004ae-0281-4c19-8d05-e4dd741dbfcc",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 3},
+  "player": {"position": {"x": 2, "y": 1}},
+  "goal_reached": false,
+  "timestamp": "2026-02-13T00:08:32Z"
+}
+
+{
+  "session_id": "c56004ae-0281-4c19-8d05-e4dd741dbfcc",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 4},
+  "player": {"position": {"x": 1, "y": 1}},
+  "goal_reached": false,
+  "timestamp": "2026-02-13T00:08:33Z"
+}
+
+{
+  "session_id": "c56004ae-0281-4c19-8d05-e4dd741dbfcc",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 5},
+  "player": {"position": {"x": 0, "y": 1}},
+  "goal_reached": false,
+  "timestamp": "2026-02-13T00:08:45Z"
+}
+
+{
+  "session_id": "c56004ae-0281-4c19-8d05-e4dd741dbfcc",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 6},
+  "player": {"position": {"x": 0, "y": 2}},
+  "goal_reached": false,
+  "timestamp": "2026-02-13T00:26:23Z"
+}
+
+{
+  "session_id": "c56004ae-0281-4c19-8d05-e4dd741dbfcc",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 7},
+  "player": {"position": {"x": 1, "y": 2}},
+  "goal_reached": false,
+  "timestamp": "2026-02-13T00:26:23Z"
+}
+
+{
+  "session_id": "c56004ae-0281-4c19-8d05-e4dd741dbfcc",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 8},
+  "player": {"position": {"x": 1, "y": 3}},
+  "goal_reached": false,
+  "timestamp": "2026-02-13T00:26:24Z"
+}
+
+{
+  "session_id": "c56004ae-0281-4c19-8d05-e4dd741dbfcc",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 9},
+  "player": {"position": {"x": 2, "y": 3}},
+  "goal_reached": false,
+  "timestamp": "2026-02-13T00:26:41Z"
+}
+
+{
+  "session_id": "c56004ae-0281-4c19-8d05-e4dd741dbfcc",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 10},
+  "player": {"position": {"x": 2, "y": 2}},
+  "goal_reached": false,
+  "timestamp": "2026-02-13T00:26:42Z"
+}
+
+{
+  "session_id": "c56004ae-0281-4c19-8d05-e4dd741dbfcc",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 11},
+  "player": {"position": {"x": 3, "y": 2}},
+  "goal_reached": false,
+  "timestamp": "2026-02-13T00:26:42Z"
+}
+
+{
+  "session_id": "c56004ae-0281-4c19-8d05-e4dd741dbfcc",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 12},
+  "player": {"position": {"x": 4, "y": 2}},
+  "goal_reached": false,
+  "timestamp": "2026-02-13T00:26:43Z"
+}
+
+{
+  "session_id": "c56004ae-0281-4c19-8d05-e4dd741dbfcc",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 13},
+  "player": {"position": {"x": 4, "y": 1}},
+  "goal_reached": false,
+  "timestamp": "2026-02-13T00:26:43Z"
+}
+
+{
+  "session_id": "c56004ae-0281-4c19-8d05-e4dd741dbfcc",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 14},
+  "player": {"position": {"x": 5, "y": 1}},
+  "goal_reached": false,
+  "timestamp": "2026-02-13T00:26:44Z"
+}
+
+{
+  "session_id": "c56004ae-0281-4c19-8d05-e4dd741dbfcc",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 15},
+  "player": {"position": {"x": 5, "y": 2}},
+  "goal_reached": false,
+  "timestamp": "2026-02-13T00:26:44Z"
+}
+
+{
+  "session_id": "5865ead6-5725-4038-85c3-a4927bc8dbc3",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 1},
+  "player": {"position": {"x": 0, "y": 1}},
+  "goal_reached": false,
+  "timestamp": "2026-02-13T00:27:23Z"
+}
+
+{
+  "session_id": "5865ead6-5725-4038-85c3-a4927bc8dbc3",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 2},
+  "player": {"position": {"x": 1, "y": 1}},
+  "goal_reached": false,
+  "timestamp": "2026-02-13T00:27:24Z"
+}
+
+{
+  "session_id": "5865ead6-5725-4038-85c3-a4927bc8dbc3",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 3},
+  "player": {"position": {"x": 1, "y": 0}},
+  "goal_reached": false,
+  "timestamp": "2026-02-13T00:27:24Z"
+}
+
+{
+  "session_id": "5865ead6-5725-4038-85c3-a4927bc8dbc3",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 4},
+  "player": {"position": {"x": 2, "y": 0}},
+  "goal_reached": false,
+  "timestamp": "2026-02-13T00:27:24Z"
+}
+
+{
+  "session_id": "5865ead6-5725-4038-85c3-a4927bc8dbc3",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 5},
+  "player": {"position": {"x": 2, "y": 1}},
+  "goal_reached": false,
+  "timestamp": "2026-02-13T00:27:25Z"
+}
+
+{
+  "session_id": "5865ead6-5725-4038-85c3-a4927bc8dbc3",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 6},
+  "player": {"position": {"x": 2, "y": 2}},
+  "goal_reached": false,
+  "timestamp": "2026-02-13T00:27:38Z"
+}
+
+{
+  "session_id": "5865ead6-5725-4038-85c3-a4927bc8dbc3",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 7},
+  "player": {"position": {"x": 1, "y": 2}},
+  "goal_reached": false,
+  "timestamp": "2026-02-13T00:27:38Z"
+}
+
+{
+  "session_id": "5865ead6-5725-4038-85c3-a4927bc8dbc3",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 8},
+  "player": {"position": {"x": 1, "y": 3}},
+  "goal_reached": false,
+  "timestamp": "2026-02-13T00:27:39Z"
+}
+
+{
+  "session_id": "5865ead6-5725-4038-85c3-a4927bc8dbc3",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 9},
+  "player": {"position": {"x": 0, "y": 3}},
+  "goal_reached": false,
+  "timestamp": "2026-02-13T00:28:21Z"
+}
+
+{
+  "session_id": "5865ead6-5725-4038-85c3-a4927bc8dbc3",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 10},
+  "player": {"position": {"x": 0, "y": 4}},
+  "goal_reached": false,
+  "timestamp": "2026-02-13T00:28:22Z"
+}
+
+{
+  "session_id": "5865ead6-5725-4038-85c3-a4927bc8dbc3",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 11},
+  "player": {"position": {"x": 0, "y": 5}},
+  "goal_reached": false,
+  "timestamp": "2026-02-13T00:29:55Z"
+}
+
+{
+  "session_id": "5865ead6-5725-4038-85c3-a4927bc8dbc3",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 12},
+  "player": {"position": {"x": 1, "y": 5}},
+  "goal_reached": false,
+  "timestamp": "2026-02-13T00:29:55Z"
+}
+
+{
+  "session_id": "5865ead6-5725-4038-85c3-a4927bc8dbc3",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 13},
+  "player": {"position": {"x": 1, "y": 6}},
+  "goal_reached": false,
+  "timestamp": "2026-02-13T00:29:55Z"
+}
+
+{
+  "session_id": "5865ead6-5725-4038-85c3-a4927bc8dbc3",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 1},
+  "player": {"position": {"x": 1, "y": 0}},
+  "goal_reached": false,
+  "timestamp": "2026-02-13T00:30:10Z"
+}
+
+{
+  "session_id": "5865ead6-5725-4038-85c3-a4927bc8dbc3",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 2},
+  "player": {"position": {"x": 1, "y": 1}},
+  "goal_reached": false,
+  "timestamp": "2026-02-13T00:30:11Z"
+}
+
+{
+  "session_id": "5865ead6-5725-4038-85c3-a4927bc8dbc3",
+  "event_type": "player_move",
+  "input": {"device": "joystick", "move_sequence": 3},
+  "player": {"position": {"x": 1, "y": 2}},
+  "goal_reached": false,
+  "timestamp": "2026-02-13T00:30:41Z"
+}
+
