@@ -1,0 +1,18 @@
+{
+  "team": "team1tt",
+  "event_type": "player_move",
+  "input": {
+    "device": "keyboard",
+    "move_sequence": 1
+  },
+  "player": {
+    "position": {
+      "x": 0,
+      "y": 1
+    }
+  },
+  "goal_reached": false,
+  "timestamp": "2026-02-23T19:00:00Z",
+  "session_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "move_dir": "forward"
+}

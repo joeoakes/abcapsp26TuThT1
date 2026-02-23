@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+
 set -e # Exit immediately on error
 
 echo "Building all maze applications..."
@@ -50,6 +51,22 @@ gcc -O2 -Wall -Wextra -std=c11 \
     $(pkg-config --cflags --libs libmicrohttpd libcurl openssl hiredis uuid)
 
 echo "maze_https_redis build successful."
+echo
+
+# =========================
+# Build maze_https_minipupper
+# =========================
+SRC="https/maze_https_minipupper.c"
+OUT="https/maze_https_minipupper"
+
+echo "Compiling $SRC → $OUT"
+
+gcc -O2 -Wall -Wextra -std=c11 \
+    "$SRC" \
+    -o "$OUT" \
+    $(pkg-config --cflags --libs libmicrohttpd gnutls)
+
+echo "maze_https_minipupper build successful."
 echo
 
 echo "All builds completed successfully."
