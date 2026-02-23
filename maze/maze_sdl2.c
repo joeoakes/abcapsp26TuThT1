@@ -11,13 +11,42 @@
 #include <uuid/uuid.h>
 #include <curl/curl.h>
 
+
+static void build_mission_json(
+    char* out,
+    size_t out_size,
+    const char* mission_id,
+    const char* result,
+    const char* abort_reason
+);
+
+static void save_https_mission(const char* json, const char* mission_url);
+
+
+static const char *g_logging_url = NULL;
+static const char *g_ai_url      = NULL;
+static const char *g_mission_url = NULL;
+
+static void print_full_mission_json(const char* mission_id,
+                                    const char* result,
+                                    const char* abort_reason);
+
+
 #define MAZE_W 21   // number of cells horizontally
 #define MAZE_H 15   // number of cells vertically
 #define CELL   32   // pixels per cell
 #define PAD    16   // window padding around maze
 
-// HTTPS server endpoint configuration
-#define HTTPS_URL "https://localhost:8443/move"
+// ===== Mission stats =====
+static time_t mission_start_time = 0;
+static int moves_left = 0;
+static int moves_right = 0;
+static int moves_straight = 0;
+static int moves_reverse = 0;
+static int moves_total = 0;
+static double distance_traveled = 0.0;
+static bool mission_active = false;
+
 
 // Wall bitmask for each cell
 enum { WALL_N = 1, WALL_E = 2, WALL_S = 4, WALL_W = 8 };
@@ -52,7 +81,8 @@ static void get_iso8601_time(char* buf, size_t len) {
 static void save_https_move(
     const char* session_id,
     int px, int py,
-    int move_sequence, bool goal_reached
+    int move_sequence, bool goal_reached,
+    const char* HTTPS_URL
 ) {
     CURL* curl = curl_easy_init();
     if (!curl) return;
@@ -62,7 +92,7 @@ static void save_https_move(
 
     char json[512];
     snprintf(json, sizeof(json),
-        "{"
+        "{" "\"team\": \"team1tt\","
             "\"event_type\": \"player_move\","
             "\"input\": {\"device\":\"keyboard\",\"move_sequence\":%d},"
             "\"player\": {\"position\":{\"x\":%d,\"y\":%d}},"
@@ -76,6 +106,7 @@ static void save_https_move(
         timestamp,
         session_id
     );
+    printf("Posting telemetry JSON:\n%s\n", json);
 
     struct curl_slist* headers = NULL;
     headers = curl_slist_append(headers, "Content-Type: application/json");
@@ -92,11 +123,14 @@ static void save_https_move(
     // Discard server response to prevent spam
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, discard_response);
 
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 500L);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, 300L);
+
     CURLcode res = curl_easy_perform(curl);
     if (res != CURLE_OK) {
         fprintf(stderr, "HTTPS POST failed: %s\n", curl_easy_strerror(res));
     } else if (!printed_status) {
-        printf("Successfully logged.\n");
+        printf("{\"status\":\"ok\"}\n");
         printed_status = true;
     }
 
@@ -289,6 +323,97 @@ static void regenerate(int* px, int* py, SDL_Window* win) {
     printed_status = false;
 }
 
+
+static void save_https_mission(const char* json, const char* mission_url) {
+
+    printf("MISSION POST URL = %s\n", mission_url);
+    CURL* curl = curl_easy_init();
+    if (!curl) return;
+
+    struct curl_slist* headers = NULL;
+    headers = curl_slist_append(headers, "Content-Type: application/json");
+
+    curl_easy_setopt(curl, CURLOPT_URL, mission_url);
+    curl_easy_setopt(curl, CURLOPT_POST, 1L);
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json);
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+
+    // Discard server response to prevent spam
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, discard_response);
+
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 800L);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, 500L);
+
+    CURLcode res = curl_easy_perform(curl);
+    if (res != CURLE_OK) {
+        fprintf(stderr, "Mission POST failed (%s): %s\n", mission_url, curl_easy_strerror(res));
+    } else {
+        printf("Mission payload sent to %s\n", mission_url);
+    }
+
+    curl_slist_free_all(headers);
+    curl_easy_cleanup(curl);
+}
+
+static void print_full_mission_json(const char* mission_id,
+                                    const char* result,
+                                    const char* abort_reason) {
+    char mission_json[1024];
+
+    build_mission_json(mission_json, sizeof(mission_json),
+                       mission_id, result, abort_reason);
+
+    printf("\n===== MISSION PAYLOAD JSON =====\n%s\n===============================\n", mission_json);
+
+    save_https_mission(mission_json, g_mission_url);
+}
+
+static void build_mission_json(
+    char* out,
+    size_t out_size,
+    const char* mission_id,
+    const char* result,
+    const char* abort_reason
+) {
+    time_t end_time = time(NULL);
+    int duration = (int)difftime(end_time, mission_start_time);
+
+    snprintf(out, out_size,
+        "{"
+          "\"team\":\"team1tt\","
+          "\"mission_id\":\"%s\","
+          "\"robot_id\":\"MAZE_CLIENT_01\","
+          "\"mission_type\":\"maze_run\","
+          "\"start_time\":%ld,"
+          "\"end_time\":%ld,"
+          "\"moves_left_turn\":%d,"
+          "\"moves_right_turn\":%d,"
+          "\"moves_straight\":%d,"
+          "\"moves_reverse\":%d,"
+          "\"moves_total\":%d,"
+          "\"distance_traveled\":%.2f,"
+          "\"duration_seconds\":%d,"
+          "\"mission_result\":\"%s\","
+          "\"abort_reason\":\"%s\""
+        "}",
+        mission_id,
+        mission_start_time,
+        end_time,
+        moves_left,
+        moves_right,
+        moves_straight,
+        moves_reverse,
+        moves_total,
+        distance_traveled,
+        duration,
+        result,
+        abort_reason
+    );
+}
+
 int main(int argc, char** argv) {
     (void)argc; (void)argv;
     srand((unsigned)time(NULL));
@@ -296,9 +421,29 @@ int main(int argc, char** argv) {
     // Initialize libcurl globally (required before any curl calls)
     curl_global_init(CURL_GLOBAL_DEFAULT);
 
+    const char *TELEMETRY_URL = "https://10.170.8.109:8443/move";
+    const char *MISSION_URL = getenv("MAZE_MISSION_URL");
+    if (!MISSION_URL) MISSION_URL = "https://10.170.8.109:8443/mission";
+
+    g_logging_url = getenv("MAZE_LOGGING_URL");
+    g_ai_url      = getenv("MAZE_AI_URL");
+    g_mission_url = getenv("MAZE_MISSION_URL");
+
+    if (!g_logging_url) g_logging_url = "https://10.170.8.101:8443/move";
+    if (!g_ai_url)      g_ai_url      = "https://10.170.8.109:8443/move";
+    if (!g_mission_url) g_mission_url = "https://10.170.8.109:8443/mission";
+
+    printf("Mission payload will post to: %s\n", g_mission_url);
+    printf("Posting telemetry to logging: %s\n", g_logging_url);
+    printf("Posting telemetry to AI: %s\n", g_ai_url);
+
     // Generates session UUID
     uuid_t binuuid; uuid_generate_random(binuuid);
     uuid_unparse_lower(binuuid, session_id);
+
+    // Print status once at program start
+    printf("{\"status\":\"ok\"}\n");
+    printed_status = true;
 
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
         fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
@@ -321,6 +466,14 @@ int main(int argc, char** argv) {
     }
 
     SDL_Renderer* r = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    // ===== Start mission =====
+    mission_start_time = time(NULL);
+    mission_active = true;
+
+    moves_left = moves_right = moves_straight = moves_reverse = 0;
+    moves_total = 0;
+    distance_traveled = 0.0;
+
     if (!r) {
         fprintf(stderr, "SDL_CreateRenderer failed: %s\n", SDL_GetError());
         SDL_DestroyWindow(win);
@@ -338,39 +491,64 @@ int main(int argc, char** argv) {
     while (running) {
         SDL_Event e;
         while (SDL_PollEvent(&e)) {
-            if (e.type == SDL_QUIT) running = false;
+            if (e.type == SDL_QUIT) {
+                if (mission_active) {
+                    print_full_mission_json("MISSION_001", "aborted", "window closed");
+                    mission_active = false;
+                }
+                running = false;
+            }
 
             if (e.type == SDL_KEYDOWN) {
                 SDL_Keycode k = e.key.keysym.sym;
 
-                if (k == SDLK_ESCAPE) running = false;
+                if (k == SDLK_ESCAPE) {
+                    if (mission_active) {
+                        print_full_mission_json("MISSION_001", "aborted", "user exited");
+                        mission_active = false;
+                    }
+                    running = false;
+                    break;
+                }
 
                 if (k == SDLK_r) {
                     regenerate(&px, &py, win);
                     won = false;
                     move_sequence = 0;
+
+                    mission_start_time = time(NULL);
+                    mission_active = true;
+                    moves_left = moves_right = moves_straight = moves_reverse = 0;
+                    moves_total = 0;
+                    distance_traveled = 0.0;
+                    continue;
                 }
 
                 if (!won) {
                     bool moved = false;
 
-                    if (k == SDLK_UP || k == SDLK_w)    moved |= try_move(&px, &py, 0, -1);
-                    if (k == SDLK_RIGHT || k == SDLK_d) moved |= try_move(&px, &py, 1, 0);
-                    if (k == SDLK_DOWN || k == SDLK_s)  moved |= try_move(&px, &py, 0, 1);
-                    if (k == SDLK_LEFT || k == SDLK_a)  moved |= try_move(&px, &py, -1, 0);
+                    if (k == SDLK_UP || k == SDLK_w)    { moved |= try_move(&px, &py, 0, -1); if (moved) moves_straight++; }
+                    if (k == SDLK_RIGHT || k == SDLK_d) { moved |= try_move(&px, &py, 1, 0);  if (moved) moves_right++; }
+                    if (k == SDLK_DOWN || k == SDLK_s)  { moved |= try_move(&px, &py, 0, 1);  if (moved) moves_reverse++; }
+                    if (k == SDLK_LEFT || k == SDLK_a)  { moved |= try_move(&px, &py, -1, 0); if (moved) moves_left++; }
 
                     if (moved) {
                         move_sequence++;
+                        moves_total++;
+                        distance_traveled += 1.0;
+
                         bool goal = (px == MAZE_W - 1 && py == MAZE_H - 1);
 
                         save_json_move(session_id, px, py, move_sequence, goal);
-                        save_https_move(session_id, px, py, move_sequence, goal);
-                    }
+                        save_https_move(session_id, px, py, move_sequence, goal, g_logging_url);
+                        save_https_move(session_id, px, py, move_sequence, goal, g_ai_url);
 
-                    if (px == MAZE_W - 1 && py == MAZE_H - 1) {
-                        won = true;
-                        SDL_SetWindowTitle(win, "You win! Press R to regenerate, Esc to quit");
-
+                        if (goal && mission_active) {
+                            won = true;
+                            print_full_mission_json("MISSION_001", "success", "none");
+                            mission_active = false;
+                            SDL_SetWindowTitle(win, "You win! Press R to regenerate, Esc to quit");
+                        }
                     }
                 }
             }
