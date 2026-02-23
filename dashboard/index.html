@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Mini-Pupper Mission Dashboard — Team 1</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0d1117;
+      --surface:   #161b22;
+      --border:    #30363d;
+      --text:      #e6edf3;
+      --muted:     #8b949e;
+      --blue:      #58a6ff;
+      --green:     #3fb950;
+      --yellow:    #d29922;
+      --red:       #f85149;
+      --purple:    #bc8cff;
+      --orange:    #ffa657;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      font-size: 14px;
+      min-height: 100vh;
+    }
+
+    /* ── HEADER ── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    header h1 {
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    header h1 .tag {
+      font-size: 11px;
+      font-weight: 500;
+      background: #1f6feb33;
+      color: var(--blue);
+      border: 1px solid #1f6feb66;
+      border-radius: 12px;
+      padding: 2px 9px;
+    }
+    .header-meta {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .live-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--green);
+      font-weight: 600;
+      font-size: 12px;
+    }
+    .live-badge .dot {
+      width: 8px; height: 8px;
+      background: var(--green);
+      border-radius: 50%;
+      animation: pulse 1.8s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.4; transform: scale(0.8); }
+    }
+
+    /* ── LAYOUT ── */
+    .layout {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      grid-template-rows: auto 1fr auto;
+      gap: 0;
+      height: calc(100vh - 53px);
+    }
+
+    /* ── SIDEBAR ── */
+    .sidebar {
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      grid-row: 1 / 4;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .section-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    /* Robot health cards */
+    .robot-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 8px;
+    }
+    .robot-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .robot-name {
+      font-weight: 600;
+      font-size: 13px;
+    }
+    .status-badge {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+    .status-active  { background: #3fb95022; color: var(--green); border: 1px solid #3fb95055; }
+    .status-idle    { background: #d2992222; color: var(--yellow); border: 1px solid #d2992255; }
+    .status-offline { background: #f8514922; color: var(--red);    border: 1px solid #f8514955; }
+
+    .robot-metrics {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+    .robot-metric-label { font-size: 10px; color: var(--muted); }
+    .robot-metric-value { font-size: 13px; font-weight: 600; }
+
+    /* Battery bar */
+    .battery-bar-bg {
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      margin-top: 8px;
+      overflow: hidden;
+    }
+    .battery-bar-fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: width 0.3s;
+    }
+    .bat-high   { background: var(--green); }
+    .bat-medium { background: var(--yellow); }
+    .bat-low    { background: var(--red); }
+
+    /* ── MAIN AREA ── */
+    .main {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Stats bar */
+    .stats-bar {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      border-bottom: 1px solid var(--border);
+    }
+    .stat-cell {
+      padding: 16px;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .stat-cell:last-child { border-right: none; }
+    .stat-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+    .stat-value { font-size: 26px; font-weight: 700; line-height: 1; }
+    .stat-sub   { font-size: 11px; color: var(--muted); }
+    .c-blue   { color: var(--blue); }
+    .c-green  { color: var(--green); }
+    .c-yellow { color: var(--yellow); }
+    .c-red    { color: var(--red); }
+    .c-purple { color: var(--purple); }
+    .c-orange { color: var(--orange); }
+
+    /* ── CONTENT GRID ── */
+    .content-grid {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 360px;
+      overflow: hidden;
+    }
+
+    /* Live telemetry feed */
+    .telemetry-panel {
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .panel-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--surface);
+    }
+    .panel-title {
+      font-size: 12px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .panel-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0;
+    }
+
+    .telem-row {
+      display: grid;
+      grid-template-columns: 50px 80px 60px 70px 70px 1fr;
+      align-items: center;
+      padding: 8px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      gap: 8px;
+      transition: background 0.15s;
+    }
+    .telem-row:hover { background: var(--surface); }
+    .telem-row.header {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      background: var(--surface);
+      border-bottom: 2px solid var(--border);
+      position: sticky;
+      top: 0;
+    }
+    .telem-row .seq { color: var(--muted); font-family: monospace; }
+    .telem-row .dir-badge {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      font-family: monospace;
+    }
+    .dir-straight { background: #58a6ff22; color: var(--blue);   border: 1px solid #58a6ff44; }
+    .dir-left     { background: #bc8cff22; color: var(--purple); border: 1px solid #bc8cff44; }
+    .dir-right    { background: #ffa65722; color: var(--orange); border: 1px solid #ffa65744; }
+    .dir-reverse  { background: #f8514922; color: var(--red);    border: 1px solid #f8514944; }
+    .goal-yes { color: var(--green); font-weight: 700; }
+    .goal-no  { color: var(--muted); }
+    .telem-ts { font-family: monospace; color: var(--muted); font-size: 11px; }
+
+    /* Mission history */
+    .history-panel {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .mission-card {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .mission-card:hover { background: var(--surface); }
+    .mission-card.active { background: #1f6feb11; border-left: 3px solid var(--blue); }
+    .mission-card-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .mission-id { font-weight: 600; font-size: 12px; font-family: monospace; }
+    .result-badge {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+    .result-success { background: #3fb95022; color: var(--green); border: 1px solid #3fb95055; }
+    .result-aborted { background: #f8514922; color: var(--red);   border: 1px solid #f8514955; }
+    .result-running { background: #58a6ff22; color: var(--blue);  border: 1px solid #58a6ff55; }
+    .mission-meta { font-size: 11px; color: var(--muted); display: flex; gap: 12px; }
+    .mission-mini-bar {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 4px;
+      margin-top: 8px;
+    }
+    .mini-stat { font-size: 10px; }
+    .mini-stat-val { font-weight: 600; font-size: 12px; }
+    .mini-stat-lbl { color: var(--muted); }
+
+    /* Move direction breakdown */
+    .move-breakdown {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .breakdown-title {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+    .breakdown-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+      font-size: 12px;
+    }
+    .breakdown-label { width: 70px; color: var(--muted); }
+    .breakdown-bar-bg {
+      flex: 1;
+      height: 6px;
+      background: var(--border);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .breakdown-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+    }
+    .breakdown-count { width: 30px; text-align: right; font-family: monospace; font-size: 11px; }
+
+    /* ── FOOTER ── */
+    .footer {
+      grid-column: 1 / 3;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .footer-left { display: flex; gap: 20px; }
+    .footer-item { display: flex; align-items: center; gap: 6px; }
+    .footer-dot { width: 6px; height: 6px; border-radius: 50%; }
+    .dot-green  { background: var(--green); }
+    .dot-yellow { background: var(--yellow); }
+    .dot-red    { background: var(--red); }
+
+    /* scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<!-- ── HEADER ── -->
+<header>
+  <h1>
+    🐾 Mini-Pupper Mission Dashboard
+    <span class="tag">Team 1 · Spring 2026</span>
+  </h1>
+  <div class="header-meta">
+    <span>Logging: 10.170.8.101</span>
+    <span>AI: 10.170.8.109</span>
+    <div class="live-badge"><div class="dot"></div> LIVE</div>
+  </div>
+</header>
+
+<!-- ── MAIN LAYOUT ── -->
+<div class="layout">
+
+  <!-- ── SIDEBAR: Robot Health ── -->
+  <aside class="sidebar">
+    <div>
+      <div class="section-label">Robot Health</div>
+
+      <!-- Robot 1 -->
+      <div class="robot-card">
+        <div class="robot-card-header">
+          <span class="robot-name">PUPPER-01</span>
+          <span class="status-badge status-active">ACTIVE</span>
+        </div>
+        <div class="robot-metrics">
+          <div>
+            <div class="robot-metric-label">Battery</div>
+            <div class="robot-metric-value c-green">82%</div>
+          </div>
+          <div>
+            <div class="robot-metric-label">Mission</div>
+            <div class="robot-metric-value c-blue">MAZE_RUN</div>
+          </div>
+          <div>
+            <div class="robot-metric-label">Last Seen</div>
+            <div class="robot-metric-value">0s ago</div>
+          </div>
+          <div>
+            <div class="robot-metric-label">IP</div>
+            <div class="robot-metric-value" style="font-size:11px; font-family:monospace;">10.170.8.120</div>
+          </div>
+        </div>
+        <div class="battery-bar-bg">
+          <div class="battery-bar-fill bat-high" style="width:82%"></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Move breakdown for active mission -->
+    <div>
+      <div class="section-label">Active Mission — Move Breakdown</div>
+      <div class="move-breakdown" style="background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:12px;">
+        <div class="breakdown-row">
+          <span class="breakdown-label" style="color:var(--blue);">Straight</span>
+          <div class="breakdown-bar-bg">
+            <div class="breakdown-bar-fill" style="background:var(--blue); width:41%"></div>
+          </div>
+          <span class="breakdown-count c-blue">47</span>
+        </div>
+        <div class="breakdown-row">
+          <span class="breakdown-label" style="color:var(--purple);">Left Turn</span>
+          <div class="breakdown-bar-bg">
+            <div class="breakdown-bar-fill" style="background:var(--purple); width:24%"></div>
+          </div>
+          <span class="breakdown-count c-purple">27</span>
+        </div>
+        <div class="breakdown-row">
+          <span class="breakdown-label" style="color:var(--orange);">Right Turn</span>
+          <div class="breakdown-bar-bg">
+            <div class="breakdown-bar-fill" style="background:var(--orange); width:28%"></div>
+          </div>
+          <span class="breakdown-count c-orange">32</span>
+        </div>
+        <div class="breakdown-row">
+          <span class="breakdown-label" style="color:var(--red);">Reverse</span>
+          <div class="breakdown-bar-bg">
+            <div class="breakdown-bar-fill" style="background:var(--red); width:7%"></div>
+          </div>
+          <span class="breakdown-count c-red">8</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI Insight -->
+    <div>
+      <div class="section-label">AI RAG Insight</div>
+      <div style="background:var(--bg); border:1px solid #1f6feb55; border-radius:8px; padding:12px; font-size:12px; color:var(--muted); line-height:1.6;">
+        <span style="color:var(--blue); font-weight:600;">PUPPER-01</span> is taking
+        <span style="color:var(--orange);">40% more left turns</span> than average
+        for this maze configuration. Similar missions suggest a
+        <span style="color:var(--yellow);">sensor drift</span> issue on the left
+        proximity sensor. Recommend recalibration before next run.
+        <br><br>
+        <span style="color:var(--muted); font-size:10px;">
+          Source: 12 similar missions · Confidence: 87%
+        </span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── MAIN ── -->
+  <div class="main">
+
+    <!-- Stats bar -->
+    <div class="stats-bar">
+      <div class="stat-cell">
+        <span class="stat-label">Total Moves</span>
+        <span class="stat-value c-blue">114</span>
+        <span class="stat-sub">this mission</span>
+      </div>
+      <div class="stat-cell">
+        <span class="stat-label">Distance</span>
+        <span class="stat-value c-green">24.4</span>
+        <span class="stat-sub">units traveled</span>
+      </div>
+      <div class="stat-cell">
+        <span class="stat-label">Duration</span>
+        <span class="stat-value c-yellow">31s</span>
+        <span class="stat-sub">elapsed</span>
+      </div>
+      <div class="stat-cell">
+        <span class="stat-label">Missions Run</span>
+        <span class="stat-value c-purple">8</span>
+        <span class="stat-sub">this session</span>
+      </div>
+      <div class="stat-cell">
+        <span class="stat-label">Success Rate</span>
+        <span class="stat-value c-green">75%</span>
+        <span class="stat-sub">6 of 8</span>
+      </div>
+      <div class="stat-cell">
+        <span class="stat-label">Robots Online</span>
+        <span class="stat-value c-orange">1/1</span>
+        <span class="stat-sub">active in swarm</span>
+      </div>
+    </div>
+
+    <!-- Content grid -->
+    <div class="content-grid">
+
+      <!-- Live telemetry feed -->
+      <div class="telemetry-panel">
+        <div class="panel-header">
+          <span class="panel-title">
+            <div class="dot" style="width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 1.8s ease-in-out infinite;"></div>
+            Live Move Telemetry
+          </span>
+          <span style="font-size:11px; color:var(--muted);">mongo: maze.moves_pupbyte1 · redis: team1tt_pupbyte1</span>
+        </div>
+        <div class="panel-body">
+          <div class="telem-row header">
+            <span>#</span>
+            <span>Robot</span>
+            <span>Direction</span>
+            <span>Position</span>
+            <span>Goal</span>
+            <span>Timestamp</span>
+          </div>
+          <!-- Rows — most recent first -->
+          <div class="telem-row">
+            <span class="seq">114</span>
+            <span style="font-size:11px;">PUPPER-01</span>
+            <span><span class="dir-badge dir-straight">FORWARD</span></span>
+            <span style="font-family:monospace; font-size:11px;">(20, 14)</span>
+            <span class="goal-yes">✓ YES</span>
+            <span class="telem-ts">2026-02-23T15:44:37Z</span>
+          </div>
+          <div class="telem-row">
+            <span class="seq">113</span>
+            <span style="font-size:11px;">PUPPER-01</span>
+            <span><span class="dir-badge dir-right">RIGHT</span></span>
+            <span style="font-family:monospace; font-size:11px;">(19, 14)</span>
+            <span class="goal-no">—</span>
+            <span class="telem-ts">2026-02-23T15:44:36Z</span>
+          </div>
+          <div class="telem-row">
+            <span class="seq">112</span>
+            <span style="font-size:11px;">PUPPER-01</span>
+            <span><span class="dir-badge dir-straight">FORWARD</span></span>
+            <span style="font-family:monospace; font-size:11px;">(18, 14)</span>
+            <span class="goal-no">—</span>
+            <span class="telem-ts">2026-02-23T15:44:35Z</span>
+          </div>
+          <div class="telem-row">
+            <span class="seq">111</span>
+            <span style="font-size:11px;">PUPPER-01</span>
+            <span><span class="dir-badge dir-left">LEFT</span></span>
+            <span style="font-family:monospace; font-size:11px;">(17, 13)</span>
+            <span class="goal-no">—</span>
+            <span class="telem-ts">2026-02-23T15:44:34Z</span>
+          </div>
+          <div class="telem-row">
+            <span class="seq">110</span>
+            <span style="font-size:11px;">PUPPER-01</span>
+            <span><span class="dir-badge dir-straight">FORWARD</span></span>
+            <span style="font-family:monospace; font-size:11px;">(16, 13)</span>
+            <span class="goal-no">—</span>
+            <span class="telem-ts">2026-02-23T15:44:33Z</span>
+          </div>
+          <div class="telem-row">
+            <span class="seq">109</span>
+            <span style="font-size:11px;">PUPPER-01</span>
+            <span><span class="dir-badge dir-reverse">REVERSE</span></span>
+            <span style="font-family:monospace; font-size:11px;">(15, 13)</span>
+            <span class="goal-no">—</span>
+            <span class="telem-ts">2026-02-23T15:44:32Z</span>
+          </div>
+          <div class="telem-row">
+            <span class="seq">108</span>
+            <span style="font-size:11px;">PUPPER-01</span>
+            <span><span class="dir-badge dir-left">LEFT</span></span>
+            <span style="font-family:monospace; font-size:11px;">(15, 12)</span>
+            <span class="goal-no">—</span>
+            <span class="telem-ts">2026-02-23T15:44:31Z</span>
+          </div>
+          <div class="telem-row">
+            <span class="seq">107</span>
+            <span style="font-size:11px;">PUPPER-01</span>
+            <span><span class="dir-badge dir-straight">FORWARD</span></span>
+            <span style="font-family:monospace; font-size:11px;">(14, 12)</span>
+            <span class="goal-no">—</span>
+            <span class="telem-ts">2026-02-23T15:44:30Z</span>
+          </div>
+          <div class="telem-row">
+            <span class="seq">106</span>
+            <span style="font-size:11px;">PUPPER-01</span>
+            <span><span class="dir-badge dir-right">RIGHT</span></span>
+            <span style="font-family:monospace; font-size:11px;">(13, 12)</span>
+            <span class="goal-no">—</span>
+            <span class="telem-ts">2026-02-23T15:44:29Z</span>
+          </div>
+          <div class="telem-row">
+            <span class="seq">105</span>
+            <span style="font-size:11px;">PUPPER-01</span>
+            <span><span class="dir-badge dir-straight">FORWARD</span></span>
+            <span style="font-family:monospace; font-size:11px;">(12, 11)</span>
+            <span class="goal-no">—</span>
+            <span class="telem-ts">2026-02-23T15:44:28Z</span>
+          </div>
+          <div class="telem-row" style="color:var(--muted); font-size:11px; justify-content:center; padding:12px; display:flex;">
+            ··· 104 earlier moves in MongoDB ···
+          </div>
+        </div>
+      </div>
+
+      <!-- Mission history -->
+      <div class="history-panel">
+        <div class="panel-header">
+          <span class="panel-title">Mission History</span>
+          <span style="font-size:11px; color:var(--muted);">maze.moves_pupbyte1</span>
+        </div>
+        <div class="panel-body">
+
+          <div class="mission-card active">
+            <div class="mission-card-top">
+              <span class="mission-id">MISSION_008</span>
+              <span class="result-badge result-running">IN PROGRESS</span>
+            </div>
+            <div class="mission-meta">
+              <span>PUPPER-01</span>
+              <span>maze_run</span>
+              <span>31s elapsed</span>
+            </div>
+            <div class="mission-mini-bar">
+              <div class="mini-stat"><div class="mini-stat-val c-blue">114</div><div class="mini-stat-lbl">moves</div></div>
+              <div class="mini-stat"><div class="mini-stat-val c-green">24.4</div><div class="mini-stat-lbl">dist</div></div>
+              <div class="mini-stat"><div class="mini-stat-val c-purple">27</div><div class="mini-stat-lbl">left</div></div>
+              <div class="mini-stat"><div class="mini-stat-val c-orange">32</div><div class="mini-stat-lbl">right</div></div>
+            </div>
+          </div>
+
+          <div class="mission-card">
+            <div class="mission-card-top">
+              <span class="mission-id">MISSION_007</span>
+              <span class="result-badge result-success">SUCCESS</span>
+            </div>
+            <div class="mission-meta">
+              <span>PUPPER-01</span>
+              <span>maze_run</span>
+              <span>28s · 2026-02-23</span>
+            </div>
+            <div class="mission-mini-bar">
+              <div class="mini-stat"><div class="mini-stat-val c-blue">98</div><div class="mini-stat-lbl">moves</div></div>
+              <div class="mini-stat"><div class="mini-stat-val c-green">21.0</div><div class="mini-stat-lbl">dist</div></div>
+              <div class="mini-stat"><div class="mini-stat-val c-purple">22</div><div class="mini-stat-lbl">left</div></div>
+              <div class="mini-stat"><div class="mini-stat-val c-orange">28</div><div class="mini-stat-lbl">right</div></div>
+            </div>
+          </div>
+
+          <div class="mission-card">
+            <div class="mission-card-top">
+              <span class="mission-id">MISSION_006</span>
+              <span class="result-badge result-aborted">ABORTED</span>
+            </div>
+            <div class="mission-meta">
+              <span>PUPPER-01</span>
+              <span>maze_run</span>
+              <span>12s · low battery</span>
+            </div>
+            <div class="mission-mini-bar">
+              <div class="mini-stat"><div class="mini-stat-val c-blue">34</div><div class="mini-stat-lbl">moves</div></div>
+              <div class="mini-stat"><div class="mini-stat-val c-green">7.2</div><div class="mini-stat-lbl">dist</div></div>
+              <div class="mini-stat"><div class="mini-stat-val c-purple">9</div><div class="mini-stat-lbl">left</div></div>
+              <div class="mini-stat"><div class="mini-stat-val c-orange">11</div><div class="mini-stat-lbl">right</div></div>
+            </div>
+          </div>
+
+          <div class="mission-card">
+            <div class="mission-card-top">
+              <span class="mission-id">MISSION_005</span>
+              <span class="result-badge result-success">SUCCESS</span>
+            </div>
+            <div class="mission-meta">
+              <span>PUPPER-01</span>
+              <span>maze_run</span>
+              <span>35s · 2026-02-23</span>
+            </div>
+            <div class="mission-mini-bar">
+              <div class="mini-stat"><div class="mini-stat-val c-blue">127</div><div class="mini-stat-lbl">moves</div></div>
+              <div class="mini-stat"><div class="mini-stat-val c-green">27.1</div><div class="mini-stat-lbl">dist</div></div>
+              <div class="mini-stat"><div class="mini-stat-val c-purple">31</div><div class="mini-stat-lbl">left</div></div>
+              <div class="mini-stat"><div class="mini-stat-val c-orange">35</div><div class="mini-stat-lbl">right</div></div>
+            </div>
+          </div>
+
+          <div class="mission-card">
+            <div class="mission-card-top">
+              <span class="mission-id">MISSION_004</span>
+              <span class="result-badge result-success">SUCCESS</span>
+            </div>
+            <div class="mission-meta">
+              <span>PUPPER-01</span>
+              <span>maze_run</span>
+              <span>29s · 2026-02-22</span>
+            </div>
+            <div class="mission-mini-bar">
+              <div class="mini-stat"><div class="mini-stat-val c-blue">103</div><div class="mini-stat-lbl">moves</div></div>
+              <div class="mini-stat"><div class="mini-stat-val c-green">22.3</div><div class="mini-stat-lbl">dist</div></div>
+              <div class="mini-stat"><div class="mini-stat-val c-purple">24</div><div class="mini-stat-lbl">left</div></div>
+              <div class="mini-stat"><div class="mini-stat-val c-orange">29</div><div class="mini-stat-lbl">right</div></div>
+            </div>
+          </div>
+
+          <div class="mission-card">
+            <div class="mission-card-top">
+              <span class="mission-id">MISSION_003</span>
+              <span class="result-badge result-aborted">ABORTED</span>
+            </div>
+            <div class="mission-meta">
+              <span>PUPPER-01</span>
+              <span>maze_run</span>
+              <span>8s · user exited</span>
+            </div>
+            <div class="mission-mini-bar">
+              <div class="mini-stat"><div class="mini-stat-val c-blue">19</div><div class="mini-stat-lbl">moves</div></div>
+              <div class="mini-stat"><div class="mini-stat-val c-green">4.0</div><div class="mini-stat-lbl">dist</div></div>
+              <div class="mini-stat"><div class="mini-stat-val c-purple">5</div><div class="mini-stat-lbl">left</div></div>
+              <div class="mini-stat"><div class="mini-stat-val c-orange">6</div><div class="mini-stat-lbl">right</div></div>
+            </div>
+          </div>
+
+          <div class="mission-card">
+            <div class="mission-card-top">
+              <span class="mission-id">MISSION_002</span>
+              <span class="result-badge result-success">SUCCESS</span>
+            </div>
+            <div class="mission-meta">
+              <span>PUPPER-01</span>
+              <span>maze_run</span>
+              <span>41s · 2026-02-22</span>
+            </div>
+            <div class="mission-mini-bar">
+              <div class="mini-stat"><div class="mini-stat-val c-blue">152</div><div class="mini-stat-lbl">moves</div></div>
+              <div class="mini-stat"><div class="mini-stat-val c-green">31.8</div><div class="mini-stat-lbl">dist</div></div>
+              <div class="mini-stat"><div class="mini-stat-val c-purple">46</div><div class="mini-stat-lbl">left</div></div>
+              <div class="mini-stat"><div class="mini-stat-val c-orange">46</div><div class="mini-stat-lbl">right</div></div>
+            </div>
+          </div>
+
+          <div class="mission-card">
+            <div class="mission-card-top">
+              <span class="mission-id">MISSION_001</span>
+              <span class="result-badge result-success">SUCCESS</span>
+            </div>
+            <div class="mission-meta">
+              <span>PUPPER-01</span>
+              <span>maze_run</span>
+              <span>31s · 2026-02-17</span>
+            </div>
+            <div class="mission-mini-bar">
+              <div class="mini-stat"><div class="mini-stat-val c-blue">114</div><div class="mini-stat-lbl">moves</div></div>
+              <div class="mini-stat"><div class="mini-stat-val c-green">24.4</div><div class="mini-stat-lbl">dist</div></div>
+              <div class="mini-stat"><div class="mini-stat-val c-purple">27</div><div class="mini-stat-lbl">left</div></div>
+              <div class="mini-stat"><div class="mini-stat-val c-orange">32</div><div class="mini-stat-lbl">right</div></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── FOOTER ── -->
+  <footer class="footer">
+    <div class="footer-left">
+      <div class="footer-item">
+        <div class="footer-dot dot-green"></div>
+        MongoDB connected · 10.170.8.101:8443
+      </div>
+      <div class="footer-item">
+        <div class="footer-dot dot-green"></div>
+        Redis connected · 10.170.8.109:8443
+      </div>
+    </div>
+    <span>Penn State Abington · CMPSC &amp; IT · Spring 2026 · Team 1 (TuTh)</span>
+  </footer>
+
+</div>
+</body>
+</html>
