@@ -429,7 +429,7 @@ int main(int argc, char** argv) {
     g_ai_url      = getenv("MAZE_AI_URL");
     g_mission_url = getenv("MAZE_MISSION_URL");
 
-    if (!g_logging_url) g_logging_url = "https://10.170.8.101:8443/move";
+    if (!g_logging_url) g_logging_url = "https://10.170.8.130:8443/move";
     if (!g_ai_url)      g_ai_url      = "https://10.170.8.109:8443/move";
     if (!g_mission_url) g_mission_url = "https://10.170.8.109:8443/mission";
 
@@ -478,7 +478,7 @@ int main(int argc, char** argv) {
         fprintf(stderr, "SDL_CreateRenderer failed: %s\n", SDL_GetError());
         SDL_DestroyWindow(win);
         SDL_Quit();
-        return 1;
+       return 1;
     }
 
     int px = 0, py = 0;
