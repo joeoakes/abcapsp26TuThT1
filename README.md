@@ -129,6 +129,20 @@ The project follows **industry-grade testing standards**:
 
 ---
 
+## 🔨 Building
+
+From the repository root, build all maze applications (SDL2 client, HTTPS servers):
+
+```bash
+./scripts/build.sh
+```
+
+Or from any directory: `bash /path/to/repo/scripts/build.sh` — the script runs from the repo root automatically.
+
+To generate CA and client certificates for **mTLS** (mutual TLS): `./scripts/gen_mtls_certs.sh`. See `https/README.md` for mTLS setup and testing.
+
+---
+
 ## 📦 Project Management & DevOps
 
 - All code hosted on **GitHub**

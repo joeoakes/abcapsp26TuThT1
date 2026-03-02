@@ -139,22 +139,72 @@ curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
 
 ---
 
+## Mutual TLS (mTLS)
+
+To require **client certificates** (robot/client authentication), use a CA and client certs.
+
+### 1. Generate CA and client certificates
+
+From the repository root:
+
+```bash
+./scripts/gen_mtls_certs.sh
+```
+
+This creates in `https/certs/`:
+
+- `ca.crt`, `ca.key` — CA used by the server to verify client certs  
+- `client.crt`, `client.key` — client certificate for robots or API clients  
+
+### 2. Run the server with mTLS
+
+Start the server from the **https/** directory so it finds `certs/` (i.e. `https/certs/`).  
+If `certs/ca.crt` exists, the server will require a valid client certificate.
+
+```bash
+cd https
+./maze_https_mongo
+```
+
+Or from the repo root with explicit paths:
+
+```bash
+CERT_FILE=https/certs/server.crt KEY_FILE=https/certs/server.key CA_FILE=https/certs/ca.crt ./https/maze_https_mongo
+```
+
+### 3. Test with curl (client certificate)
+
+```bash
+curl -k \
+  --cert https/certs/client.crt \
+  --key https/certs/client.key \
+  -X POST https://localhost:8443/move \
+  -H "Content-Type: application/json" \
+  -d '{"event_type":"player_move","player":{"position":{"x":1,"y":2}},"goal_reached":false}'
+```
+
+Without `--cert`/`--key`, the server will reject the request when mTLS is enabled.
+
+**Note:** mTLS requires libmicrohttpd built with GnuTLS support and the `MHD_OPTION_HTTPS_MEM_TRUST` option (common in recent versions).
+
+---
+
 ## Production Notes
 
 For production deployments:
 
 - Use a **CA-signed certificate** (Let’s Encrypt or internal CA)
 - Enable TLS verification on clients
-- Consider:
-  - Mutual TLS (client certificates)
-  - JWT or API key authentication
-  - Running behind a reverse proxy (nginx)
+- Use **mTLS** (client certificates) as shown above for robot/API identity
+- Consider JWT or API key authentication in addition
+- Consider running behind a reverse proxy (nginx)
 
 ---
 
 ## Summary
 
 ✔ Encrypted HTTPS transport  
+✔ Optional mTLS (client certificates) via `CA_FILE` / `certs/ca.crt`  
 ✔ Same JSON payload as HTTP version  
 ✔ MongoDB ingestion unchanged  
 ✔ Ideal for labs, SDL games, and telemetry pipelines  

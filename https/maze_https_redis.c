@@ -16,6 +16,8 @@
 
 static const char *cert_file = "certs/server.crt";
 static const char *key_file  = "certs/server.key";
+/* Optional: when set, server requires client certificates (mTLS) */
+static const char *ca_file   = "certs/ca.crt";
 static redisContext *redis;
 
 struct connection_info {
@@ -141,17 +143,38 @@ int main(void) {
     	return 1;
 	}
 
+	const char *ca_path = getenv("CA_FILE");
+	if (!ca_path || !*ca_path)
+		ca_path = ca_file;
+	char *ca_pem = read_file(ca_path);
+	int use_mtls = (ca_pem != NULL);
 
-    struct MHD_Daemon *daemon = MHD_start_daemon(
-        MHD_USE_THREAD_PER_CONNECTION | MHD_USE_TLS,
-        DEFAULT_PORT,
-        NULL, NULL,
-        &handle_post, NULL,
-        MHD_OPTION_HTTPS_MEM_CERT,
-        cert_pem,
-        MHD_OPTION_HTTPS_MEM_KEY,
-        key_pem,
-        MHD_OPTION_END);
+	struct MHD_Daemon *daemon;
+	if (use_mtls) {
+		daemon = MHD_start_daemon(
+			MHD_USE_THREAD_PER_CONNECTION | MHD_USE_TLS,
+			DEFAULT_PORT,
+			NULL, NULL,
+			&handle_post, NULL,
+			MHD_OPTION_HTTPS_MEM_CERT,
+			cert_pem,
+			MHD_OPTION_HTTPS_MEM_KEY,
+			key_pem,
+			MHD_OPTION_HTTPS_MEM_TRUST,
+			ca_pem,
+			MHD_OPTION_END);
+	} else {
+		daemon = MHD_start_daemon(
+			MHD_USE_THREAD_PER_CONNECTION | MHD_USE_TLS,
+			DEFAULT_PORT,
+			NULL, NULL,
+			&handle_post, NULL,
+			MHD_OPTION_HTTPS_MEM_CERT,
+			cert_pem,
+			MHD_OPTION_HTTPS_MEM_KEY,
+			key_pem,
+			MHD_OPTION_END);
+	}
 
     if (!daemon) {
         fprintf(stderr, "Failed to start HTTPS server\n");
@@ -159,6 +182,10 @@ int main(void) {
     }
 
     	printf("========================================\n");
+	if (use_mtls)
+		printf("mTLS: client certificates required (CA: %s)\n", ca_path);
+	else
+		printf("TLS only (no client cert required). Set CA_FILE for mTLS.\n");
 	printf("Database backend: Redis\n");
 	printf("Redis host: 127.0.0.1\n");
 	printf("Redis port: 6379\n");
@@ -172,6 +199,8 @@ int main(void) {
     MHD_stop_daemon(daemon);
 	free(cert_pem);
 	free(key_pem);
+	if (ca_pem)
+		free(ca_pem);
     redisFree(redis);
     return 0;
 }

@@ -2,7 +2,12 @@
 
 set -e # Exit immediately on error
 
-echo "Building all maze applications..."
+# Run from repository root (parent of scripts/)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$REPO_ROOT"
+
+echo "Building all maze applications (from $REPO_ROOT)..."
 echo
 
 # =========================
