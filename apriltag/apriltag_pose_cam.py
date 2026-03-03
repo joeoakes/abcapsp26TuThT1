@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 from pupil_apriltags import Detector
 import math
+import platform
 
 def rvec_to_rpy_degrees(rvec):
     R, _ = cv2.Rodrigues(rvec)
@@ -15,9 +16,16 @@ def main():
     # ---- Camera selection ----
     # Try 0, 1, 2 if needed. For BRIO, 0 is often correct.
     cam_index = 0
+    system = platform.system()
+
+    if system == "Windows":
+        cap = cv2.VideoCapture(cam_index, cv2.CAP_DSHOW)
+    elif system == "Darwin": #macOS
+        cap = cv2.VideoCapture(cam_index, cv2.CAP_AVFOUNDATION)
+    else: #Linux or others
+        cap = cv2.VideoCapture(cam_index)
 
     # Prefer DirectShow on Windows for better stability:
-    cap = cv2.VideoCapture(cam_index, cv2.CAP_DSHOW)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 
