@@ -1,220 +1,107 @@
-\# AprilTag Pose Camera (Python)
-
-
+# AprilTag Pose Camera (Python)
 
 This application uses your computer camera to detect AprilTags and estimate:
-
-
-
-\- Tag Family
-
-\- Tag ID
-
-\- Position: X, Y, Z (meters from camera)
-
-\- Orientation: Roll, Pitch, Yaw
-
-
+- Tag Family
+- Tag ID
+- Position: X, Y, Z (meters from camera)
+- Orientation: Roll, Pitch, Yaw
 
 It works on:
 
-
-
-\- Windows
-
-\- macOS
-
-\- Linux (Ubuntu recommended)
-
-
-
+- Windows
+- macOS
+- Linux (Ubuntu recommended)
+  
 ---
 
-
-
-\# Requirements
-
-
-
-\- Python 3.10, 3.11, or 3.12
-
-\- A webcam
-
-\- pip
-
-
+## Requirements
+- Python 3.10, 3.11, or 3.12
+- A webcam
+- pip
 
 Check Python version:
-
-
-
-&nbsp;   python --version
-
-
-
-or
-
-
-
-&nbsp;   python3 --version
-
-
+``` python -- version ``` or ```python3 --version```
 
 ---
 
-
-
-\# 1️⃣ Create a Virtual Environment (Recommended)
-
+## 1️⃣ Create a Virtual Environment (Recommended)
 
 
 Windows:
-
-
-
-&nbsp;   python -m venv venv
-
-&nbsp;   venv\\Scripts\\activate
-
-
+```bash
+ python -m venv venv
+venv\\Scripts\\activate
+```
 
 macOS / Linux:
-
-
-
-&nbsp;   python3 -m venv venv
-
-&nbsp;   source venv/bin/activate
-
-
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
 
 ---
 
-
-
-\# 2️⃣ Install Required Packages
-
-
+## 2️⃣ Install Required Packages
 
 Install dependencies:
-
-
-
-&nbsp;   pip install opencv-python numpy apriltag
-
-
+```pip install opencv-python numpy apriltag```
 
 If using Python 3.12 and apriltag fails to build:
+```pip install opencv-python numpy pupil-apriltags```
 
 
-
-&nbsp;   pip install opencv-python numpy pupil-apriltags
-
-
-
-(Then modify import in script to use `from pupil\_apriltags import Detector`.)
-
-
+(Then modify import in script to use 
+```from pupil_apriltags import Detector```.)
 
 ---
 
-
-
-\# 3️⃣ Camera Index Selection
-
-
-
+## 3️⃣ Camera Index Selection
 If you have multiple cameras:
-
-
-
-\- 0 = default camera
-
-\- 1 = external webcam
-
-\- 2 = additional devices
-
+- 0 = default camera
+- 1 = external webcam
+- 2 = additional devices
 
 
 In the script, change:
 
+```cv2.VideoCapture(0)```
 
-
-&nbsp;   cv2.VideoCapture(0)
-
-
-
-to:
-
-
-
-&nbsp;   cv2.VideoCapture(1)
-
-
+to: ```cv2.VideoCapture(1)```
 
 For example, if using Logitech BRIO.
 
-
-
 ---
 
+## 4️⃣ Running the Application
 
-
-\# 4️⃣ Running the Application
-
-
-
-Windows:
-
-
-
-&nbsp;   python apriltag\_pose\_cam.py
-
+Windows: 
+```bash
+python apriltag_pose_cam.py
+```
 
 
 macOS / Linux:
-
-
-
-&nbsp;   python3 apriltag\_pose\_cam.py
-
-
+```bash
+python3 apriltag_pose_cam.py
+```
 
 ---
+## 5️⃣ Common Fixes
 
-
-
-\# 5️⃣ Common Fixes
-
-
-
-\## Camera Not Opening
-
-
-
+### Camera Not Opening
 Try changing camera index to 1 or 2.
-
 
 
 On Linux, you can list devices:
 
-
-
-&nbsp;   ls /dev/video\*
+```ls /dev/video```
 
 
 
 ---
-
-
-
-\## macOS Camera Permission
-
-
+### macOS Camera Permission
 
 Go to:
-
-
 
 System Settings → Privacy \& Security → Camera
 
@@ -226,85 +113,47 @@ Allow Terminal or Python.
 
 ---
 
-
-
-\## Windows Camera Permission
-
-
+## Windows Camera Permission
 
 Settings → Privacy → Camera  
 
 Enable camera access for desktop apps.
 
 
-
 ---
 
 
+### If apriltag fails to install on Windows
 
-\## If apriltag fails to install on Windows
-
-
-
-Install Microsoft C++ Build Tools:
-
-
-
-https://visualstudio.microsoft.com/visual-cpp-build-tools/
+Install Microsoft C++ Build Tools: https://visualstudio.microsoft.com/visual-cpp-build-tools/
 
 
 
 Then reinstall:
-
-
-
-&nbsp;   pip install apriltag
+```pip install apriltag```
 
 
 
 ---
 
-
-
-\# 6️⃣ Printing AprilTags
-
-
-
-You can generate printable tags here:
-
-
-
-https://april.eecs.umich.edu/software/apriltag.html
+## 6️⃣ Printing AprilTags
+You can generate printable tags here: https://april.eecs.umich.edu/software/apriltag.html
 
 
 
 Recommended family:
-
-
-
-&nbsp;   tag36h11
-
-
+```tag36h11```
 
 Print at high contrast on white paper.
 
-
-
 ---
 
+## 7️⃣ Exit Program
 
-
-\# 7️⃣ Exit Program
-
-
-
-Press:
-
-
-
-&nbsp;   q
-
-
+Press: 
+```plaintext
+q
+```
 
 to quit.
 
@@ -312,11 +161,7 @@ to quit.
 
 ---
 
-
-
-\# Example Output
-
-
+## Example Output
 
 Tag: tag36h11
 
@@ -332,23 +177,16 @@ Orientation (deg): Roll=2.1 Pitch=-1.5 Yaw=15.3
 
 
 
-\# Notes
+## Notes
+- For accurate pose estimation, you must set correct camera calibration parameters in the script.
 
-
-
-\- For accurate pose estimation, you must set correct camera calibration parameters in the script.
-
-\- Use a chessboard calibration with OpenCV for best results.
+- Use a chessboard calibration with OpenCV for best results.
 
 
 
 ---
 
 
-
-\# Author
-
-
-
-Oakes
+## Author
+Joe Oakes
 
