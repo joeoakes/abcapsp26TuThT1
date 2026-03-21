@@ -1,13 +1,10 @@
 // maze_sdl2.c
-<<<<<<< HEAD
-// Simple SDL2 maze: generate (DFS backtracker), draw, move player to goal.
-// Controls: Arrow keys or WASD. R = regenerate. Esc = quit.
-=======
-// SDL2 Maze with Telemetry + Mission posting + AI Autoplay (/init + /next)
+// SDL2 Maze with telemetry + HTTPS mission posting + optional AI autoplay (/init + /next).
 //
-// Controls (manual mode): Arrow keys or WASD. R = regenerate. Esc = quit.
-// Autoplay: set MAZE_AUTOPLAY=1 (then keyboard input is ignored for movement)
->>>>>>> d81ce23 (upddated maze app to send telemtry to maze brain)
+// Controls (manual): Arrow keys or WASD. R = regenerate. Esc = quit.
+// Runtime toggle: P = autoplay on/off.
+// Controller: Left Shoulder toggles autoplay, Back toggles dashboard, Start regenerates, D-pad moves.
+// Autoplay: MAZE_AUTOPLAY=1 (keyboard movement ignored; brain drives moves).
 
 #include <SDL2/SDL.h>
 #include <stdbool.h>
@@ -23,48 +20,10 @@
    ===== CONFIG / GLOBALS =====
    =========================== */
 
-<<<<<<< HEAD
-static void build_mission_json(
-    char* out,
-    size_t out_size,
-    const char* mission_id,
-    const char* result,
-    const char* abort_reason
-);
-
-static void save_https_mission(const char* json, const char* mission_url);
-
-
-static const char *g_logging_url = NULL;
-static const char *g_ai_url      = NULL;
-static const char *g_mission_url = NULL;
-
-static void print_full_mission_json(const char* mission_id,
-                                    const char* result,
-                                    const char* abort_reason);
-
-
-#define MAZE_W 21   // number of cells horizontally
-#define MAZE_H 15   // number of cells vertically
-#define CELL   32   // pixels per cell
-#define PAD    16   // window padding around maze
-
-// ===== Mission stats =====
-static time_t mission_start_time = 0;
-static int moves_left = 0;
-static int moves_right = 0;
-static int moves_straight = 0;
-static int moves_reverse = 0;
-static int moves_total = 0;
-static double distance_traveled = 0.0;
-static bool mission_active = false;
-
-=======
 #define MAZE_W 21
 #define MAZE_H 15
 #define CELL   32
 #define PAD    16
->>>>>>> d81ce23 (upddated maze app to send telemtry to maze brain)
 
 // Wall bitmask for each cell
 enum { WALL_N = 1, WALL_E = 2, WALL_S = 4, WALL_W = 8 };
@@ -82,8 +41,6 @@ static char session_id[37];
 // Flag to print status only once per session
 static bool printed_status = false;
 
-<<<<<<< HEAD
-=======
 // ===== Mission stats =====
 static time_t mission_start_time = 0;
 static int moves_left = 0;
@@ -95,14 +52,44 @@ static double distance_traveled = 0.0;
 static bool mission_active = false;
 
 // URLs
-static const char *g_logging_url = NULL;  // move telemetry logging endpoint
-static const char *g_ai_url      = NULL;  // move telemetry AI endpoint
-static const char *g_mission_url = NULL;  // mission endpoint
+static const char *g_logging_url = NULL;
+static const char *g_ai_url      = NULL;
+static const char *g_mission_url = NULL;
+static const char *g_dashboard_url = NULL;
+static const char *g_tls_ca_file = NULL;
+static const char *g_tls_client_cert = NULL;
+static const char *g_tls_client_key = NULL;
+static bool g_tls_insecure = false;
 
 // Brain (autoplay) endpoints
-static const char *g_brain_init_url = NULL; // /init
-static const char *g_brain_next_url = NULL; // /next
+static const char *g_brain_init_url = NULL;
+static const char *g_brain_next_url = NULL;
 static bool g_autoplay = false;
+
+// When true, we show an in-app dashboard overlay and pause movement.
+static bool g_in_dashboard = false;
+static bool g_draw_dashboard_overlay = false;
+static SDL_GameController* g_controller = NULL;
+
+// Mission results for the in-app dashboard (most recent first).
+// We only track missions created during this single program run.
+static bool g_mission_history[20];
+static int g_mission_history_count = 0;
+static int g_missions_run = 0;
+static int g_missions_success = 0;
+
+// (single-window dashboard overlay mode)
+
+#if defined(__APPLE__)
+#ifdef __cplusplus
+extern "C" {
+#endif
+int dashboard_embed_show(SDL_Window *window, const char *url_cstr);
+void dashboard_embed_hide(void);
+#ifdef __cplusplus
+}
+#endif
+#endif
 
 /* ===========================
    ===== FORWARD DECLS ========
@@ -127,16 +114,12 @@ static void print_full_mission_json(
 /* ===========================
    ===== CURL HELPERS =========
    =========================== */
-
->>>>>>> d81ce23 (upddated maze app to send telemtry to maze brain)
 // Callback to discard curl response body (prevents spam to stdout)
 static size_t discard_response(void* ptr, size_t size, size_t nmemb, void* userdata) {
     (void)ptr; (void)userdata;
     return size * nmemb;
 }
 
-<<<<<<< HEAD
-=======
 struct Memory {
     char*  buf;
     size_t cap;
@@ -178,9 +161,21 @@ static int http_post_json(const char* url, const char* json, char* out_resp, siz
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json);
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 
-    // allow self-signed cert if https (safe for your lab environment)
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+    bool is_https = (url && strncmp(url, "https://", 8) == 0);
+    if (is_https) {
+        // Secure-by-default TLS settings. Use MAZE_TLS_INSECURE=1 only for temporary local debugging.
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, g_tls_insecure ? 0L : 1L);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, g_tls_insecure ? 0L : 2L);
+        if (g_tls_ca_file && g_tls_ca_file[0] != '\0') {
+            curl_easy_setopt(curl, CURLOPT_CAINFO, g_tls_ca_file);
+        }
+        if (g_tls_client_cert && g_tls_client_cert[0] != '\0') {
+            curl_easy_setopt(curl, CURLOPT_SSLCERT, g_tls_client_cert);
+        }
+        if (g_tls_client_key && g_tls_client_key[0] != '\0') {
+            curl_easy_setopt(curl, CURLOPT_SSLKEY, g_tls_client_key);
+        }
+    }
 
     // response handling
     if (out_resp && out_resp_cap > 0) {
@@ -201,7 +196,6 @@ static int http_post_json(const char* url, const char* json, char* out_resp, siz
     return (res == CURLE_OK) ? 0 : -1;
 }
 
->>>>>>> d81ce23 (upddated maze app to send telemtry to maze brain)
 // Gets time in ISO-8601
 static void get_iso8601_time(char* buf, size_t len) {
     time_t now = time(NULL);
@@ -219,12 +213,7 @@ static void save_https_move(
     int move_sequence, bool goal_reached,
     const char* HTTPS_URL
 ) {
-<<<<<<< HEAD
-    CURL* curl = curl_easy_init();
-    if (!curl) return;
-=======
     if (!HTTPS_URL) return;
->>>>>>> d81ce23 (upddated maze app to send telemtry to maze brain)
 
     char timestamp[32];
     get_iso8601_time(timestamp, sizeof(timestamp));
@@ -247,39 +236,9 @@ static void save_https_move(
         session_id_
     );
 
-<<<<<<< HEAD
-    struct curl_slist* headers = NULL;
-    headers = curl_slist_append(headers, "Content-Type: application/json");
-
-    curl_easy_setopt(curl, CURLOPT_URL, HTTPS_URL);
-    curl_easy_setopt(curl, CURLOPT_POST, 1L);
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json);
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-
-    // Self-signed cert
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
-
-    // Discard server response to prevent spam
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, discard_response);
-
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 500L);
-    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, 300L);
-
-    CURLcode res = curl_easy_perform(curl);
-    if (res != CURLE_OK) {
-        fprintf(stderr, "HTTPS POST failed: %s\n", curl_easy_strerror(res));
-    } else if (!printed_status) {
-=======
-    // print once per run (keeps output readable)
-    // (You can comment this out if it’s too noisy)
-    // printf("Posting telemetry JSON:\n%s\n", json);
-
-    // discard response body
     (void)http_post_json(HTTPS_URL, json, NULL, 0, 500L);
 
     if (!printed_status) {
->>>>>>> d81ce23 (upddated maze app to send telemtry to maze brain)
         printf("{\"status\":\"ok\"}\n");
         printed_status = true;
     }
@@ -319,31 +278,8 @@ static void save_https_mission(const char* json, const char* mission_url) {
 
     printf("MISSION POST URL = %s\n", mission_url);
 
-<<<<<<< HEAD
-    struct curl_slist* headers = NULL;
-    headers = curl_slist_append(headers, "Content-Type: application/json");
-
-    curl_easy_setopt(curl, CURLOPT_URL, mission_url);
-    curl_easy_setopt(curl, CURLOPT_POST, 1L);
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json);
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
-
-    // Discard server response to prevent spam
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, discard_response);
-
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 800L);
-    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, 500L);
-
-    CURLcode res = curl_easy_perform(curl);
-    if (res != CURLE_OK) {
-        fprintf(stderr, "Mission POST failed (%s): %s\n", mission_url, curl_easy_strerror(res));
-=======
     if (http_post_json(mission_url, json, NULL, 0, 1200L) != 0) {
         fprintf(stderr, "Mission POST failed (%s)\n", mission_url);
->>>>>>> d81ce23 (upddated maze app to send telemtry to maze brain)
     } else {
         printf("Mission payload sent to %s\n", mission_url);
     }
@@ -531,6 +467,149 @@ static void draw_player_goal(SDL_Renderer* r, int px, int py) {
     SDL_RenderFillRect(r, &p);
 }
 
+static void draw_filled_rect(SDL_Renderer* r, int x, int y, int w, int h, Uint8 R, Uint8 G, Uint8 B, Uint8 A) {
+    SDL_Rect rect = { x, y, w, h };
+    SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(r, R, G, B, A);
+    SDL_RenderFillRect(r, &rect);
+}
+
+static const uint8_t* glyph5x7(char c) {
+    // 5x7 uppercase bitmap font for HUD labels.
+    static const uint8_t blank[7] = {0,0,0,0,0,0,0};
+    static const uint8_t colon[7] = {0,4,0,0,4,0,0};
+    static const uint8_t A[7] = {14,17,17,31,17,17,17};
+    static const uint8_t D[7] = {30,17,17,17,17,17,30};
+    static const uint8_t E[7] = {31,16,16,30,16,16,31};
+    static const uint8_t L[7] = {16,16,16,16,16,16,31};
+    static const uint8_t M[7] = {17,27,21,21,17,17,17};
+    static const uint8_t N[7] = {17,25,21,19,17,17,17};
+    static const uint8_t O[7] = {14,17,17,17,17,17,14};
+    static const uint8_t P[7] = {30,17,17,30,16,16,16};
+    static const uint8_t R[7] = {30,17,17,30,20,18,17};
+    static const uint8_t T[7] = {31,4,4,4,4,4,4};
+    static const uint8_t U[7] = {17,17,17,17,17,17,14};
+    static const uint8_t Y[7] = {17,17,10,4,4,4,4};
+
+    switch (c) {
+        case 'A': return A;
+        case 'D': return D;
+        case 'E': return E;
+        case 'L': return L;
+        case 'M': return M;
+        case 'N': return N;
+        case 'O': return O;
+        case 'P': return P;
+        case 'R': return R;
+        case 'T': return T;
+        case 'U': return U;
+        case 'Y': return Y;
+        case ':': return colon;
+        case ' ': return blank;
+        default: return blank;
+    }
+}
+
+static void draw_text5x7(SDL_Renderer* r, int x, int y, int scale, const char* text, Uint8 R, Uint8 G, Uint8 B, Uint8 A) {
+    if (!text || scale <= 0) return;
+    SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(r, R, G, B, A);
+
+    int cx = x;
+    for (const char* p = text; *p; ++p) {
+        const uint8_t* g = glyph5x7(*p);
+        for (int row = 0; row < 7; row++) {
+            for (int col = 0; col < 5; col++) {
+                if ((g[row] >> (4 - col)) & 1) {
+                    SDL_Rect px = { cx + col * scale, y + row * scale, scale, scale };
+                    SDL_RenderFillRect(r, &px);
+                }
+            }
+        }
+        cx += 6 * scale; // 5 pixels + 1 spacing
+    }
+}
+
+static void draw_dashboard_overlay(SDL_Renderer* r, int win_w, int win_h, bool won_local) {
+    // Dark translucent overlay
+    draw_filled_rect(r, 0, 0, win_w, win_h, 0, 0, 0, 190);
+
+    const int left_x = PAD;
+    const int right_x = win_w - PAD;
+    const int panel_w = right_x - left_x;
+
+    // Header bar: green on success/goal reached, red on aborted, blue while running.
+    Uint8 headerR = 40, headerG = 110, headerB = 200;
+    if (!mission_active) {
+        if (won_local) { headerR = 63; headerG = 185; headerB = 80; }  // green
+        else { headerR = 248; headerG = 81; headerB = 73; }     // red
+    }
+    draw_filled_rect(r, left_x, PAD, panel_w, 44, headerR, headerG, headerB, 220);
+
+    // Move breakdown bars (vertical stack)
+    int total = moves_total > 0 ? moves_total : 1;
+    const int bar_x = left_x + 12;
+    const int bar_w = panel_w - 24;
+    const int bar_h = 10;
+    int bar_y = PAD + 62;
+
+    // Straight (forward)
+    int pct = (moves_straight * 100) / total;
+    draw_filled_rect(r, bar_x, bar_y, (bar_w * pct) / 100, bar_h, 88, 166, 255, 230);
+    bar_y += 16;
+
+    // Left
+    pct = (moves_left * 100) / total;
+    draw_filled_rect(r, bar_x, bar_y, (bar_w * pct) / 100, bar_h, 188, 140, 255, 230);
+    bar_y += 16;
+
+    // Right
+    pct = (moves_right * 100) / total;
+    draw_filled_rect(r, bar_x, bar_y, (bar_w * pct) / 100, bar_h, 255, 166, 87, 230);
+    bar_y += 16;
+
+    // Reverse
+    pct = (moves_reverse * 100) / total;
+    draw_filled_rect(r, bar_x, bar_y, (bar_w * pct) / 100, bar_h, 248, 81, 73, 230);
+
+    // Success rate bar (bottom-left)
+    int rate = 0;
+    if (g_missions_run > 0) {
+        rate = (g_missions_success * 100) / g_missions_run;
+    }
+    const int sr_x = left_x;
+    const int sr_y = win_h - PAD - 58;
+    draw_filled_rect(r, sr_x, sr_y, panel_w, 16, 48, 54, 61, 230);
+    // Fill color from yellow->green
+    Uint8 fillR = (rate > 60) ? 63 : 210;
+    Uint8 fillG = (rate > 60) ? 185 : 146;
+    Uint8 fillB = (rate > 60) ? 80 : 34;
+    draw_filled_rect(r, sr_x, sr_y, (panel_w * rate) / 100, 16, fillR, fillG, fillB, 240);
+
+    // Mission history mini-cards (bottom-right)
+    const int cards_x = left_x + panel_w - 160;
+    int card_y = sr_y - 90;
+    int max_cards = 5;
+    for (int i = 0; i < max_cards; i++) {
+        int idx = g_mission_history_count - 1 - i;
+        if (idx < 0) break;
+        bool success = g_mission_history[idx];
+        Uint8 R = success ? 63 : 248;
+        Uint8 G = success ? 185 : 81;
+        Uint8 B = success ? 80 : 73;
+        draw_filled_rect(r, cards_x, card_y + i * 18, 140, 12, R, G, B, 230);
+    }
+}
+
+static void draw_mode_hud(SDL_Renderer* r) {
+    const char* mode_text = g_autoplay ? "MODE: AUTOPLAY" : "MODE: MANUAL";
+    const int scale = 2;
+    const int box_w = (int)strlen(mode_text) * 6 * scale + 10;
+    const int box_h = 7 * scale + 8;
+    draw_filled_rect(r, PAD, PAD / 2, box_w, box_h, 0, 0, 0, 160);
+    draw_text5x7(r, PAD + 5, PAD / 2 + 4, scale, mode_text, 255, 255, 255, 255);
+}
+
 /* ===========================
    ===== MOVEMENT ============
    =========================== */
@@ -560,7 +639,22 @@ static void reset_mission_stats(void) {
     distance_traveled = 0.0;
 }
 
+static void record_mission_end(bool success) {
+    if (g_mission_history_count < (int)(sizeof(g_mission_history) / sizeof(g_mission_history[0]))) {
+        g_mission_history[g_mission_history_count] = success;
+        g_mission_history_count++;
+    }
+    g_missions_run++;
+    if (success) g_missions_success++;
+}
+
 static void regenerate(int* px, int* py, SDL_Window* win) {
+    // If a mission is active and user regenerates, treat it as aborted.
+    if (mission_active) {
+        print_full_mission_json("MISSION_001", "aborted", "regenerated");
+        mission_active = false;
+        record_mission_end(false);
+    }
     maze_init();
     maze_generate(0, 0);
     *px = 0; *py = 0;
@@ -726,10 +820,46 @@ static bool autoplay_step(int* px, int* py, int* move_sequence, bool* won) {
     if (goal && mission_active) {
         *won = true;
         print_full_mission_json("MISSION_001", "success", "none");
+        record_mission_end(true);
         mission_active = false;
     }
 
     return true;
+}
+
+static void set_autoplay(bool enabled) {
+    if (g_autoplay == enabled) return;
+    g_autoplay = enabled;
+    printf("Autoplay: %s\n", g_autoplay ? "ENABLED" : "disabled");
+    if (g_autoplay) {
+        brain_send_init();
+    }
+}
+
+static void apply_move_and_emit(int* px, int* py, int* move_sequence, bool* won, int dx, int dy, SDL_Window* win) {
+    bool moved = false;
+    if (dx == 0 && dy == -1) { moved = try_move(px, py, 0, -1); if (moved) moves_straight++; }
+    if (dx == 1 && dy == 0)  { moved = try_move(px, py, 1, 0);  if (moved) moves_right++; }
+    if (dx == 0 && dy == 1)  { moved = try_move(px, py, 0, 1);  if (moved) moves_reverse++; }
+    if (dx == -1 && dy == 0) { moved = try_move(px, py, -1, 0); if (moved) moves_left++; }
+    if (!moved) return;
+
+    (*move_sequence)++;
+    moves_total++;
+    distance_traveled += 1.0;
+
+    bool goal = (*px == MAZE_W - 1 && *py == MAZE_H - 1);
+    save_json_move(session_id, *px, *py, *move_sequence, goal);
+    save_https_move(session_id, *px, *py, *move_sequence, goal, g_logging_url);
+    save_https_move(session_id, *px, *py, *move_sequence, goal, g_ai_url);
+
+    if (goal && mission_active) {
+        *won = true;
+        print_full_mission_json("MISSION_001", "success", "none");
+        record_mission_end(true);
+        mission_active = false;
+        SDL_SetWindowTitle(win, "You win! Press R to regenerate, Esc to quit");
+    }
 }
 
 /* ===========================
@@ -743,26 +873,27 @@ int main(int argc, char** argv) {
     // Initialize libcurl globally (required before any curl calls)
     curl_global_init(CURL_GLOBAL_DEFAULT);
 
-<<<<<<< HEAD
-    const char *TELEMETRY_URL = "https://10.170.8.109:8443/move";
-    const char *MISSION_URL = getenv("MAZE_MISSION_URL");
-    if (!MISSION_URL) MISSION_URL = "https://10.170.8.109:8443/mission";
-
-=======
-    // Generates session UUID
     uuid_t binuuid;
     uuid_generate_random(binuuid);
     uuid_unparse_lower(binuuid, session_id);
 
-    // Env URLs (telemetry + mission)
->>>>>>> d81ce23 (upddated maze app to send telemtry to maze brain)
     g_logging_url = getenv("MAZE_LOGGING_URL");
     g_ai_url      = getenv("MAZE_AI_URL");
     g_mission_url = getenv("MAZE_MISSION_URL");
+    g_dashboard_url = getenv("MAZE_DASHBOARD_URL");
+    g_tls_ca_file = getenv("MAZE_TLS_CA_FILE");
+    g_tls_client_cert = getenv("MAZE_TLS_CLIENT_CERT");
+    g_tls_client_key = getenv("MAZE_TLS_CLIENT_KEY");
+
+    const char* tls_insecure = getenv("MAZE_TLS_INSECURE");
+    if (tls_insecure && strcmp(tls_insecure, "1") == 0) {
+        g_tls_insecure = true;
+    }
 
     if (!g_logging_url) g_logging_url = "https://10.170.8.130:8443/move";
     if (!g_ai_url)      g_ai_url      = "https://10.170.8.109:8443/move";
     if (!g_mission_url) g_mission_url = "https://10.170.8.109:8443/mission";
+    if (!g_dashboard_url) g_dashboard_url = "http://127.0.0.1:8000/index.html?apiPort=8443";
 
     // Brain endpoints
     g_brain_init_url = getenv("MAZE_BRAIN_INIT_URL");
@@ -775,28 +906,35 @@ int main(int argc, char** argv) {
 
     printf("Mission payload will post to: %s\n", g_mission_url);
     printf("Posting telemetry to logging: %s\n", g_logging_url);
-<<<<<<< HEAD
-    printf("Posting telemetry to AI: %s\n", g_ai_url);
-
-    // Generates session UUID
-    uuid_t binuuid; uuid_generate_random(binuuid);
-    uuid_unparse_lower(binuuid, session_id);
-=======
     printf("Posting telemetry to AI:      %s\n", g_ai_url);
+    printf("TLS mode:                    %s\n", g_tls_insecure ? "INSECURE (debug only)" : "VERIFY");
+    printf("TLS CA:                      %s\n", (g_tls_ca_file && g_tls_ca_file[0]) ? g_tls_ca_file : "(system/default)");
+    printf("TLS client cert:             %s\n", (g_tls_client_cert && g_tls_client_cert[0]) ? g_tls_client_cert : "(none)");
+    printf("TLS client key:              %s\n", (g_tls_client_key && g_tls_client_key[0]) ? g_tls_client_key : "(none)");
+    printf("Dashboard URL:              %s\n", g_dashboard_url);
+    printf("Dashboard mode:             in-window HTML embed (macOS), overlay fallback (others)\n");
     printf("Autoplay: %s\n", g_autoplay ? "ENABLED" : "disabled");
     if (g_autoplay) {
         printf("Brain init: %s\n", g_brain_init_url);
         printf("Brain next: %s\n", g_brain_next_url);
     }
->>>>>>> d81ce23 (upddated maze app to send telemtry to maze brain)
 
     // Print status once at program start
     printf("{\"status\":\"ok\"}\n");
     printed_status = true;
 
-    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER) != 0) {
         fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
         return 1;
+    }
+    for (int i = 0; i < SDL_NumJoysticks(); i++) {
+        if (SDL_IsGameController(i)) {
+            g_controller = SDL_GameControllerOpen(i);
+            if (g_controller) {
+                printf("GameController connected: %s\n", SDL_GameControllerName(g_controller));
+            }
+            break;
+        }
     }
 
     int win_w = PAD * 2 + MAZE_W * CELL;
@@ -814,27 +952,15 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-<<<<<<< HEAD
-    SDL_Renderer* r = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-    // ===== Start mission =====
-    mission_start_time = time(NULL);
-    mission_active = true;
-
-    moves_left = moves_right = moves_straight = moves_reverse = 0;
-    moves_total = 0;
-    distance_traveled = 0.0;
-
-=======
     SDL_Renderer* r = SDL_CreateRenderer(
         win, -1,
         SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC
     );
->>>>>>> d81ce23 (upddated maze app to send telemtry to maze brain)
     if (!r) {
         fprintf(stderr, "SDL_CreateRenderer failed: %s\n", SDL_GetError());
         SDL_DestroyWindow(win);
         SDL_Quit();
-       return 1;
+        return 1;
     }
 
     // Maze + mission start
@@ -860,9 +986,23 @@ int main(int argc, char** argv) {
             if (e.type == SDL_QUIT) {
                 if (mission_active) {
                     print_full_mission_json("MISSION_001", "aborted", "window closed");
+                    record_mission_end(false);
                     mission_active = false;
                 }
+#if defined(__APPLE__)
+                dashboard_embed_hide();
+#endif
                 running = false;
+            }
+
+            if (e.type == SDL_MOUSEBUTTONDOWN) {
+                if (g_in_dashboard) {
+                    g_in_dashboard = false;
+#if defined(__APPLE__)
+                    dashboard_embed_hide();
+#endif
+                    continue;
+                }
             }
 
             if (e.type == SDL_KEYDOWN) {
@@ -871,10 +1011,35 @@ int main(int argc, char** argv) {
                 if (k == SDLK_ESCAPE) {
                     if (mission_active) {
                         print_full_mission_json("MISSION_001", "aborted", "user exited");
+                        record_mission_end(false);
                         mission_active = false;
                     }
+#if defined(__APPLE__)
+                    dashboard_embed_hide();
+#endif
                     running = false;
                     break;
+                }
+
+                if (k == SDLK_l) {
+                    g_in_dashboard = !g_in_dashboard;
+                    g_draw_dashboard_overlay = g_in_dashboard;
+#if defined(__APPLE__)
+                    if (g_in_dashboard) {
+                        int ok = dashboard_embed_show(win, g_dashboard_url);
+                        if (ok) {
+                            g_draw_dashboard_overlay = false; // use real HTML view
+                        }
+                    } else {
+                        dashboard_embed_hide();
+                    }
+#endif
+                    continue;
+                }
+
+                if (k == SDLK_p) {
+                    set_autoplay(!g_autoplay);
+                    continue;
                 }
 
                 if (k == SDLK_r) {
@@ -888,60 +1053,84 @@ int main(int argc, char** argv) {
                     continue;
                 }
 
-                // Manual movement only when autoplay is off
-                if (!g_autoplay && !won) {
-                    bool moved = false;
+                // Manual movement only when autoplay is off (and dashboard overlay isn't open)
+                if (!g_autoplay && !won && !g_in_dashboard) {
+                    if (k == SDLK_UP || k == SDLK_w)    apply_move_and_emit(&px, &py, &move_sequence, &won, 0, -1, win);
+                    if (k == SDLK_RIGHT || k == SDLK_d) apply_move_and_emit(&px, &py, &move_sequence, &won, 1, 0, win);
+                    if (k == SDLK_DOWN || k == SDLK_s)  apply_move_and_emit(&px, &py, &move_sequence, &won, 0, 1, win);
+                    if (k == SDLK_LEFT || k == SDLK_a)  apply_move_and_emit(&px, &py, &move_sequence, &won, -1, 0, win);
+                }
+            }
 
-                    if (k == SDLK_UP || k == SDLK_w)    { moved = try_move(&px, &py, 0, -1); if (moved) moves_straight++; }
-                    if (k == SDLK_RIGHT || k == SDLK_d) { moved = try_move(&px, &py, 1, 0);  if (moved) moves_right++; }
-                    if (k == SDLK_DOWN || k == SDLK_s)  { moved = try_move(&px, &py, 0, 1);  if (moved) moves_reverse++; }
-                    if (k == SDLK_LEFT || k == SDLK_a)  { moved = try_move(&px, &py, -1, 0); if (moved) moves_left++; }
+            if (e.type == SDL_CONTROLLERBUTTONDOWN) {
+                SDL_GameControllerButton b = (SDL_GameControllerButton)e.cbutton.button;
 
-                    if (moved) {
-                        move_sequence++;
-                        moves_total++;
-                        distance_traveled += 1.0;
+                // Left shoulder toggles AI autoplay on/off (with Y as fallback mapping).
+                if (b == SDL_CONTROLLER_BUTTON_LEFTSHOULDER || b == SDL_CONTROLLER_BUTTON_Y) {
+                    set_autoplay(!g_autoplay);
+                    continue;
+                }
 
-                        bool goal = (px == MAZE_W - 1 && py == MAZE_H - 1);
-
-                        save_json_move(session_id, px, py, move_sequence, goal);
-                        save_https_move(session_id, px, py, move_sequence, goal, g_logging_url);
-                        save_https_move(session_id, px, py, move_sequence, goal, g_ai_url);
-
-                        if (goal && mission_active) {
-                            won = true;
-                            print_full_mission_json("MISSION_001", "success", "none");
-                            mission_active = false;
-                            SDL_SetWindowTitle(win, "You win! Press R to regenerate, Esc to quit");
-                        }
+                // Back button mirrors L key dashboard toggle.
+                if (b == SDL_CONTROLLER_BUTTON_BACK) {
+                    g_in_dashboard = !g_in_dashboard;
+                    g_draw_dashboard_overlay = g_in_dashboard;
+#if defined(__APPLE__)
+                    if (g_in_dashboard) {
+                        int ok = dashboard_embed_show(win, g_dashboard_url);
+                        if (ok) g_draw_dashboard_overlay = false;
+                    } else {
+                        dashboard_embed_hide();
                     }
+#endif
+                    continue;
+                }
+
+                // Start button mirrors R key regenerate.
+                if (b == SDL_CONTROLLER_BUTTON_START) {
+                    regenerate(&px, &py, win);
+                    won = false;
+                    move_sequence = 0;
+                    if (g_autoplay) {
+                        brain_send_init();
+                    }
+                    continue;
+                }
+
+                if (!g_autoplay && !won && !g_in_dashboard) {
+                    if (b == SDL_CONTROLLER_BUTTON_DPAD_UP)    apply_move_and_emit(&px, &py, &move_sequence, &won, 0, -1, win);
+                    if (b == SDL_CONTROLLER_BUTTON_DPAD_RIGHT) apply_move_and_emit(&px, &py, &move_sequence, &won, 1, 0, win);
+                    if (b == SDL_CONTROLLER_BUTTON_DPAD_DOWN)  apply_move_and_emit(&px, &py, &move_sequence, &won, 0, 1, win);
+                    if (b == SDL_CONTROLLER_BUTTON_DPAD_LEFT)  apply_move_and_emit(&px, &py, &move_sequence, &won, -1, 0, win);
                 }
             }
         }
 
-<<<<<<< HEAD
-        // --- Rendering ---
-        SDL_SetRenderDrawColor(r, 15, 15, 18, 255); // background
-=======
-        // Autoplay tick
-        if (g_autoplay && !won) {
+        if (g_autoplay && !won && !g_in_dashboard) {
             (void)autoplay_step(&px, &py, &move_sequence, &won);
             if (won) SDL_SetWindowTitle(win, "AI won! Press R to regenerate, Esc to quit");
-            SDL_Delay(40); // controls speed
+            SDL_Delay(40);
         }
 
-        // --- Rendering ---
         SDL_SetRenderDrawColor(r, 15, 15, 18, 255);
->>>>>>> d81ce23 (upddated maze app to send telemtry to maze brain)
         SDL_RenderClear(r);
 
         draw_maze(r);
         draw_player_goal(r, px, py);
+        draw_mode_hud(r);
+
+        if (g_in_dashboard && g_draw_dashboard_overlay) {
+            draw_dashboard_overlay(r, win_w, win_h, won);
+        }
 
         SDL_RenderPresent(r);
     }
 
     curl_global_cleanup();
+    if (g_controller) {
+        SDL_GameControllerClose(g_controller);
+        g_controller = NULL;
+    }
     SDL_DestroyRenderer(r);
     SDL_DestroyWindow(win);
     SDL_Quit();
