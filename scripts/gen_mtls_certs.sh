@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Generate CA and client certificates for mTLS (mutual TLS).
 # Run from repo root, or the script will cd to repo root automatically.
-# Output: https/certs/ca.crt, https/certs/ca.key, https/certs/client.crt, https/certs/client.key
+# Output: https/certs/ca.crt, https/certs/ca.key,
+#         https/certs/server.crt, https/certs/server.key,
+#         https/certs/client.crt, https/certs/client.key
 # The server uses ca.crt to verify client certificates. Clients use client.crt + client.key.
 
 set -e
@@ -20,18 +22,35 @@ openssl genrsa -out ca.key 2048
 openssl req -x509 -new -nodes -key ca.key -sha256 -days 3650 -out ca.crt \
   -subj "/CN=Maze-mTLS-CA/O=PSU-Capstone"
 
+# Server cert (signed by CA; used by logging/AI servers to prove identity)
+echo "Generating server certificate (server.key, server.crt)..."
+openssl genrsa -out server.key 2048
+openssl req -new -key server.key -out server.csr \
+  -subj "/CN=localhost/O=PSU-Capstone"
+cat > server.ext <<'EOF'
+subjectAltName = DNS:localhost,IP:127.0.0.1
+extendedKeyUsage = serverAuth
+EOF
+openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial \
+  -out server.crt -days 3650 -sha256 -extfile server.ext
+rm -f server.csr server.ext
+
 # Client cert (signed by CA; used by robots/clients to authenticate)
 echo "Generating client certificate (client.key, client.crt)..."
 openssl genrsa -out client.key 2048
 openssl req -new -key client.key -out client.csr \
   -subj "/CN=minipupper-client/O=PSU-Capstone"
+cat > client.ext <<'EOF'
+extendedKeyUsage = clientAuth
+EOF
 openssl x509 -req -in client.csr -CA ca.crt -CAkey ca.key -CAcreateserial \
-  -out client.crt -days 3650 -sha256
-rm -f client.csr
+  -out client.crt -days 3650 -sha256 -extfile client.ext
+rm -f client.csr client.ext
 
 echo "Done. Certificates in $CERTS_DIR:"
-ls -la ca.crt ca.key client.crt client.key 2>/dev/null || true
+ls -la ca.crt ca.key server.crt server.key client.crt client.key 2>/dev/null || true
 echo
-echo "To enable mTLS on the server: ensure $CERTS_DIR/ca.crt exists (it does now)."
+echo "To enable mTLS on the server: set CA_FILE=$CERTS_DIR/ca.crt."
+echo "Use CERT_FILE=$CERTS_DIR/server.crt and KEY_FILE=$CERTS_DIR/server.key."
 echo "Start the HTTPS server from the repo root or from https/ with certs in https/certs/."
-echo "Test with: curl -k --cert $CERTS_DIR/client.crt --key $CERTS_DIR/client.key -X POST https://localhost:8443/move -H 'Content-Type: application/json' -d '{\"event_type\":\"test\"}'"
+echo "Test with: curl --cacert $CERTS_DIR/ca.crt --cert $CERTS_DIR/client.crt --key $CERTS_DIR/client.key -X POST https://localhost:8443/move -H 'Content-Type: application/json' -d '{\"event_type\":\"test\"}'"
