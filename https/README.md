@@ -1,210 +1,145 @@
-# maze_https_mongo
-**C HTTPS JSON → MongoDB Server**
+# HTTPS Services (Mongo, Redis, Mini-Pupper)
 
-This project is a secure (HTTPS/TLS) version of the original `maze_http_mongo` server.
+This directory contains three C HTTPS servers used in the project pipeline:
 
-It is a small **C** program that:
+- `maze_https_mongo` -> receives telemetry and stores in MongoDB
+- `maze_https_redis` -> receives telemetry/mission JSON and stores in Redis
+- `maze_https_minipupper` -> receives telemetry-style posts for Mini-Pupper flow/testing
 
-- Listens for **HTTPS** requests (TLS)
-- Receives a **JSON document**
-- Appends a server timestamp
-- Inserts the document into **MongoDB**
+All servers support TLS on `/move`, and support mTLS when `CA_FILE` is provided.
 
 ---
 
-## Endpoint
+## Security Model
 
-- **POST** `/move`
-- **Content-Type:** `application/json`
-- **Protocol:** HTTPS
+- Transport: HTTPS (TLS)
+- Identity: X.509 certificates
+- Optional mutual auth: mTLS (server verifies client cert against CA)
+- Typical port in this project: `8443`
 
-The server automatically appends:
-
-```json
-"received_at": "YYYY-MM-DDTHH:MM:SSZ"
-```
-
----
-
-## Requirements
-
-### Libraries
-- `libmicrohttpd` (with TLS / GnuTLS support)
-- MongoDB C Driver:
-  - `libmongoc`
-  - `libbson`
-- `pkg-config`
-- `gcc` or `clang`
-
-### Debian / Ubuntu / Raspberry Pi OS
-
-```bash
-sudo apt update
-sudo apt install -y   build-essential   pkg-config   libmicrohttpd-dev   libgnutls28-dev   libmongoc-dev   libbson-dev
-```
-
----
-
-## TLS Certificates (Required)
-
-For development and lab use, generate a **self-signed certificate**:
-
-```bash
-mkdir certs
-cd certs
-
-openssl req -x509 -newkey rsa:2048   -keyout server.key   -out server.crt   -days 365   -nodes   -subj "/CN=localhost"
-```
-
-Expected files:
-
-```
-certs/server.crt
-certs/server.key
-```
+For zero-trust-style deployment, run with:
+- `CERT_FILE` + `KEY_FILE` (server identity)
+- `CA_FILE` (required client-certificate trust anchor)
 
 ---
 
 ## Build
 
+From repo root:
+
 ```bash
-gcc -O2 -Wall -Wextra -std=c11 maze_https_mongo.c -o maze_https_mongo   $(pkg-config --cflags --libs libmicrohttpd libmongoc-1.0 gnutls)
+bash scripts/build.sh
+```
+
+If Mongo C driver is unavailable locally:
+
+```bash
+SKIP_HTTPS_MONGO=1 bash scripts/build.sh
 ```
 
 ---
 
-## Run
+## Generate Certificates (CA + server + client)
 
-### Default configuration
-
-```bash
-./maze_https_mongo
-```
-
-Defaults:
-- **Port:** `8443`
-- **Mongo URI:** `mongodb://localhost:27017`
-- **Database:** `maze`
-- **Collection:** `moves`
-- **TLS Cert:** `certs/server.crt`
-- **TLS Key:** `certs/server.key`
-
-### Override using environment variables
+From repo root:
 
 ```bash
-LISTEN_PORT=9443 CERT_FILE=certs/server.crt KEY_FILE=certs/server.key MONGO_URI="mongodb://localhost:27017" MONGO_DB="maze" MONGO_COL="moves" ./maze_https_mongo
+bash scripts/gen_mtls_certs.sh
 ```
+
+Generated in `https/certs/`:
+
+- `ca.crt`, `ca.key`
+- `server.crt`, `server.key`
+- `client.crt`, `client.key`
 
 ---
 
-## Test with curl
+## Run Servers with mTLS
 
-Because a self-signed certificate is used, include `-k`:
+### Mongo logging server
 
 ```bash
-curl -k -X POST https://localhost:8443/move   -H "Content-Type: application/json"   -d '{
-    "event_type": "player_move",
-    "input": {
-      "device": "joystick",
-      "move_sequence": 1
-    },
-    "player": {
-      "position": { "x": 1, "y": 2 }
-    },
-    "goal_reached": false,
-    "timestamp": "2026-01-25T11:42:18Z"
-  }'
+CERT_FILE=https/certs/server.crt \
+KEY_FILE=https/certs/server.key \
+CA_FILE=https/certs/ca.crt \
+LISTEN_PORT=8443 \
+MONGO_URI="mongodb://localhost:27017" \
+MONGO_DB="maze" \
+MONGO_COL="team1ttmoves" \
+./https/maze_https_mongo
 ```
 
-Expected response:
+### Redis server
 
-```json
-{"status":"ok"}
+```bash
+CERT_FILE=https/certs/server.crt \
+KEY_FILE=https/certs/server.key \
+CA_FILE=https/certs/ca.crt \
+LISTEN_PORT=8443 \
+REDIS_HOST=127.0.0.1 \
+REDIS_PORT=6379 \
+REDIS_PREFIX=team1tt \
+./https/maze_https_redis
 ```
+
+### Mini-Pupper server
+
+```bash
+CERT_FILE=https/certs/server.crt \
+KEY_FILE=https/certs/server.key \
+CA_FILE=https/certs/ca.crt \
+LISTEN_PORT=8443 \
+./https/maze_https_minipupper
+```
+
+When `CA_FILE` is set, requests without a valid client certificate are rejected.
 
 ---
 
-## SDL / Game Client Notes
-
-From an SDL or C-based client, HTTPS requests are commonly sent using **libcurl**.
-
-For development (self-signed certificates only):
-
-```c
-curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
-curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
-```
-
-⚠️ Do **not** disable certificate verification in production.
-
----
-
-## Mutual TLS (mTLS)
-
-To require **client certificates** (robot/client authentication), use a CA and client certs.
-
-### 1. Generate CA and client certificates
-
-From the repository root:
+## Test with curl (mTLS)
 
 ```bash
-./scripts/gen_mtls_certs.sh
-```
-
-This creates in `https/certs/`:
-
-- `ca.crt`, `ca.key` — CA used by the server to verify client certs  
-- `client.crt`, `client.key` — client certificate for robots or API clients  
-
-### 2. Run the server with mTLS
-
-Start the server from the **https/** directory so it finds `certs/` (i.e. `https/certs/`).  
-If `certs/ca.crt` exists, the server will require a valid client certificate.
-
-```bash
-cd https
-./maze_https_mongo
-```
-
-Or from the repo root with explicit paths:
-
-```bash
-CERT_FILE=https/certs/server.crt KEY_FILE=https/certs/server.key CA_FILE=https/certs/ca.crt ./https/maze_https_mongo
-```
-
-### 3. Test with curl (client certificate)
-
-```bash
-curl -k \
+curl --cacert https/certs/ca.crt \
   --cert https/certs/client.crt \
   --key https/certs/client.key \
   -X POST https://localhost:8443/move \
   -H "Content-Type: application/json" \
-  -d '{"event_type":"player_move","player":{"position":{"x":1,"y":2}},"goal_reached":false}'
+  -d '{
+    "event_type":"player_move",
+    "input":{"device":"joystick","move_sequence":1},
+    "player":{"position":{"x":1,"y":2}},
+    "goal_reached":false,
+    "timestamp":"2026-01-25T11:42:18Z"
+  }'
 ```
 
-Without `--cert`/`--key`, the server will reject the request when mTLS is enabled.
+---
 
-**Note:** mTLS requires libmicrohttpd built with GnuTLS support and the `MHD_OPTION_HTTPS_MEM_TRUST` option (common in recent versions).
+## Maze Client mTLS Settings
+
+`maze/maze_sdl2` supports these TLS env vars for outbound HTTPS to logging/AI servers:
+
+- `MAZE_TLS_CA_FILE`
+- `MAZE_TLS_CLIENT_CERT`
+- `MAZE_TLS_CLIENT_KEY`
+- `MAZE_TLS_INSECURE=1` (debug only; avoid in deployment)
+
+Example:
+
+```bash
+MAZE_TLS_CA_FILE=https/certs/ca.crt \
+MAZE_TLS_CLIENT_CERT=https/certs/client.crt \
+MAZE_TLS_CLIENT_KEY=https/certs/client.key \
+MAZE_LOGGING_URL=https://10.170.8.130:8443/move \
+MAZE_AI_URL=https://10.170.8.109:8443/move \
+MAZE_MISSION_URL=https://10.170.8.109:8443/mission \
+./maze/maze_sdl2
+```
 
 ---
 
-## Production Notes
+## Notes
 
-For production deployments:
-
-- Use a **CA-signed certificate** (Let’s Encrypt or internal CA)
-- Enable TLS verification on clients
-- Use **mTLS** (client certificates) as shown above for robot/API identity
-- Consider JWT or API key authentication in addition
-- Consider running behind a reverse proxy (nginx)
-
----
-
-## Summary
-
-✔ Encrypted HTTPS transport  
-✔ Optional mTLS (client certificates) via `CA_FILE` / `certs/ca.crt`  
-✔ Same JSON payload as HTTP version  
-✔ MongoDB ingestion unchanged  
-✔ Ideal for labs, SDL games, and telemetry pipelines  
+- Mongo target for this team is `team1ttmoves`.
+- Redis is documented as namespace/prefix `team1tt` (key format may vary by server implementation).
