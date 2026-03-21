@@ -62,6 +62,29 @@
       color: var(--muted);
       font-size: 12px;
     }
+    .upstream-pill {
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 999px;
+      padding: 3px 10px;
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+    .up-ok {
+      color: var(--green);
+      background: #3fb95022;
+      border-color: #3fb95055;
+    }
+    .up-partial {
+      color: var(--yellow);
+      background: #d2992222;
+      border-color: #d2992255;
+    }
+    .up-down {
+      color: var(--red);
+      background: #f8514922;
+      border-color: #f8514955;
+    }
     .live-badge {
       display: flex;
       align-items: center;
@@ -370,7 +393,667 @@
     ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
   </style>
 </head>
+
 <body>
+
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const params = new URLSearchParams(window.location.search);
+    const apiPort = params.get("apiPort") || "8443";
+    const wsProto = window.location.protocol === "https:" ? "wss" : "ws";
+    // The HTML may be served on a different port (e.g. :8000) than the API/WebSocket (:8443).
+    // Keep the host, force the backend port.
+    const wsHost = `${window.location.hostname || "localhost"}:${apiPort}`;
+    const ws = new WebSocket(`${wsProto}://${wsHost}/telemetry`);
+
+    // Get the panel body container
+    const panelBody = document.querySelector(".telemetry-panel .panel-body");
+
+    if (!panelBody) {
+      console.error("Telemetry panel body not found!");
+      return;
+    }
+
+    const apiBase = `${window.location.protocol}//${window.location.hostname || "localhost"}:${apiPort}`;
+
+    const missionStats = {
+      totalMoves: 0,
+      straight: 0,
+      left: 0,
+      right: 0,
+      reverse: 0,
+      lastGoalTimestamp: null,
+      firstTimestamp: null,
+      batteryPct: 82,
+      batteryCharging: null,
+      batteryStatusLabel: "Unknown",
+      missionLabel: "MAZE_RUN",
+      goalReached: false,
+      currentResult: "in_progress",
+    };
+    const completedMissions = [];
+    const swarmTotalRobots = 1;
+    const seenTelemetryKeys = new Set();
+
+    function updateMoveBreakdownUI() {
+      const total = missionStats.totalMoves || 1;
+
+      const entries = [
+        { key: "straight", id: "mb-straight", colorClass: "c-blue" },
+        { key: "left",     id: "mb-left",     colorClass: "c-purple" },
+        { key: "right",    id: "mb-right",    colorClass: "c-orange" },
+        { key: "reverse",  id: "mb-reverse",  colorClass: "c-red" },
+      ];
+
+      for (const { key, id } of entries) {
+        const count = missionStats[key] || 0;
+        const pct = Math.round((count / total) * 100);
+        const row = document.getElementById(id);
+        if (!row) continue;
+        const bar = row.querySelector(".breakdown-bar-fill");
+        const label = row.querySelector(".breakdown-count");
+        if (bar) bar.style.width = `${pct}%`;
+        if (label) label.textContent = String(count);
+      }
+    }
+
+    function updateAiInsightUI() {
+      const box = document.getElementById("ai-rag-box");
+      const meta = document.getElementById("ai-rag-meta");
+      if (!box || !meta) return;
+
+      const { straight, left, right, reverse, totalMoves, lastGoalTimestamp } = missionStats;
+      if (totalMoves === 0) {
+        box.innerHTML = `
+          <span style="color:var(--muted);">
+            Waiting for live telemetry. Run a mission or send test moves to see AI-style insight here.
+          </span>
+        `;
+        meta.textContent = "Source: live telemetry only · Confidence: N/A";
+        return;
+      }
+
+      const leftBias = totalMoves > 0 ? (left - right) / totalMoves : 0;
+      let insight = "";
+      if (Math.abs(leftBias) > 0.2) {
+        if (leftBias > 0) {
+          insight = `<span style="color:var(--blue); font-weight:600;">PUPPER-01</span> is taking <span style="color:var(--orange);">${Math.round(Math.abs(leftBias)*100)}% more left turns</span> than right this mission. This could indicate a slight drift or bias in navigation.`;
+        } else {
+          insight = `<span style="color:var(--blue); font-weight:600;">PUPPER-01</span> is taking <span style="color:var(--orange);">${Math.round(Math.abs(leftBias)*100)}% more right turns</span> than left this mission. This could indicate a slight drift or bias in navigation.`;
+        }
+      } else {
+        insight = `<span style="color:var(--blue); font-weight:600;">PUPPER-01</span> has a fairly balanced mix of left/right turns so far. Pathing appears symmetric for this maze configuration.`;
+      }
+
+      if (!lastGoalTimestamp) {
+        insight += ` No goal has been reached yet in <span style="color:var(--yellow); font-weight:600;">${totalMoves}</span> moves; maze completion may still be in progress.`;
+      } else {
+        insight += ` Goal was reached at <span style="color:var(--green); font-weight:600;">${lastGoalTimestamp}</span>.`;
+      }
+
+      box.innerHTML = insight;
+      meta.textContent = `Source: live mission stats · Moves: ${totalMoves}`;
+    }
+
+    function updateRobotHealthUI() {
+      const lastSeenEl = document.getElementById("robot-last-seen");
+      const badgeEl = document.getElementById("robot-status-badge");
+      const batteryValueEl = document.getElementById("robot-battery-value");
+      const chargeValueEl = document.getElementById("robot-charge-value");
+      const batteryBarEl = document.getElementById("robot-battery-bar");
+      const missionValueEl = document.getElementById("robot-mission-value");
+      if (!lastSeenEl || !badgeEl) return;
+
+      if (batteryValueEl || batteryBarEl) {
+        const pct = Math.max(0, Math.min(100, Math.round(missionStats.batteryPct)));
+        if (batteryValueEl) {
+          batteryValueEl.textContent = `${pct}%`;
+          batteryValueEl.classList.remove("c-green", "c-yellow", "c-red");
+          batteryValueEl.classList.add(pct > 60 ? "c-green" : pct > 30 ? "c-yellow" : "c-red");
+        }
+        if (batteryBarEl) {
+          batteryBarEl.style.width = `${pct}%`;
+          batteryBarEl.classList.remove("bat-high", "bat-medium", "bat-low");
+          batteryBarEl.classList.add(pct > 60 ? "bat-high" : pct > 30 ? "bat-medium" : "bat-low");
+        }
+      }
+      if (chargeValueEl) {
+        const status = missionStats.batteryStatusLabel || "Unknown";
+        chargeValueEl.textContent = status;
+        chargeValueEl.classList.remove("c-green", "c-yellow", "c-red", "c-blue", "c-purple");
+        if (status === "Charging") chargeValueEl.classList.add("c-green");
+        else if (status === "Discharging") chargeValueEl.classList.add("c-yellow");
+        else if (status === "Low") chargeValueEl.classList.add("c-red");
+        else if (status === "Full") chargeValueEl.classList.add("c-blue");
+        else chargeValueEl.classList.add("c-purple");
+      }
+      if (missionValueEl) {
+        missionValueEl.textContent = missionStats.missionLabel || "MAZE_RUN";
+      }
+
+      if (!missionStats.firstTimestamp) {
+        lastSeenEl.textContent = "never";
+        badgeEl.textContent = "IDLE";
+        badgeEl.classList.remove("status-offline", "status-active");
+        badgeEl.classList.add("status-idle");
+        return;
+      }
+
+      const now = Date.now();
+      const lastTs = missionStats._lastSeenMs || now;
+      const diffSec = Math.max(0, Math.round((now - lastTs) / 1000));
+      const rel = formatRelative(diffSec);
+      lastSeenEl.textContent = `${rel} ago`;
+
+      badgeEl.classList.remove("status-active", "status-idle", "status-offline");
+      if (diffSec <= 5) {
+        badgeEl.classList.add("status-active");
+        badgeEl.textContent = "ACTIVE";
+      } else if (diffSec <= 30) {
+        badgeEl.classList.add("status-idle");
+        badgeEl.textContent = "IDLE";
+      } else {
+        badgeEl.classList.add("status-offline");
+        badgeEl.textContent = "OFFLINE";
+      }
+    }
+
+    function updateStatsBarUI() {
+      const totalEl = document.getElementById("stat-total-moves");
+      const distEl = document.getElementById("stat-distance");
+      const durEl = document.getElementById("stat-duration");
+      const missionsRunEl = document.getElementById("stat-missions-run");
+      const successRateEl = document.getElementById("stat-success-rate");
+      const successSubEl = document.getElementById("stat-success-sub");
+      const robotsOnlineEl = document.getElementById("stat-robots-online");
+      const robotsSubEl = document.getElementById("stat-robots-sub");
+      if (totalEl) totalEl.textContent = String(missionStats.totalMoves);
+
+      const distance = missionStats.totalMoves; // simple 1 unit per move
+      if (distEl) distEl.textContent = distance.toFixed(1);
+
+      if (durEl) {
+        if (!missionStats.firstTimestamp) {
+          durEl.textContent = "0s";
+        } else {
+          const startMs = new Date(missionStats.firstTimestamp).getTime();
+          const diffSec = Math.max(0, Math.round((Date.now() - startMs) / 1000));
+          durEl.textContent = formatRelative(diffSec);
+        }
+      }
+
+      if (missionsRunEl) {
+        const currentStarted = missionStats.firstTimestamp ? 1 : 0;
+        missionsRunEl.textContent = String(completedMissions.length + currentStarted);
+      }
+
+      const completedCount = completedMissions.length;
+      const successCount = completedMissions.filter((m) => m.result === "success").length;
+      const successRate = completedCount > 0 ? Math.round((successCount / completedCount) * 100) : 0;
+      if (successRateEl) successRateEl.textContent = `${successRate}%`;
+      if (successSubEl) successSubEl.textContent = `${successCount} of ${completedCount}`;
+
+      const lastTs = missionStats._lastSeenMs || 0;
+      const idleSec = lastTs ? Math.max(0, Math.round((Date.now() - lastTs) / 1000)) : Number.POSITIVE_INFINITY;
+      const onlineCount = idleSec <= 30 ? 1 : 0;
+      if (robotsOnlineEl) robotsOnlineEl.textContent = `${onlineCount}/${swarmTotalRobots}`;
+      if (robotsSubEl) robotsSubEl.textContent = onlineCount > 0 ? "active in swarm" : "no active robots";
+    }
+
+    function renderCurrentMissionCard() {
+      const container = document.getElementById("mission-history-current");
+      if (!container) return;
+      if (!missionStats.firstTimestamp) {
+        container.innerHTML = "";
+        return;
+      }
+
+      const distance = missionStats.totalMoves;
+      const left = missionStats.left;
+      const right = missionStats.right;
+
+      const frag = document.createElement("div");
+      frag.className = "mission-card active";
+      const currentResult = missionStats.currentResult || (missionStats.lastGoalTimestamp ? "success" : "in_progress");
+      const resultClass =
+        currentResult === "success"
+          ? "result-success"
+          : currentResult === "aborted"
+            ? "result-aborted"
+            : "result-running";
+      const resultText =
+        currentResult === "success"
+          ? "SUCCESS"
+          : currentResult === "aborted"
+            ? "ABORTED"
+            : "IN PROGRESS";
+      frag.innerHTML = `
+        <div class="mission-card-top">
+          <span class="mission-id">CURRENT_MISSION</span>
+          <span class="result-badge ${resultClass}">
+            ${resultText}
+          </span>
+        </div>
+        <div class="mission-meta">
+          <span>PUPPER-01</span>
+          <span>maze_run</span>
+          <span>${document.getElementById("stat-duration")?.textContent || "0s"} elapsed</span>
+        </div>
+        <div class="mission-mini-bar">
+          <div class="mini-stat"><div class="mini-stat-val c-blue">${missionStats.totalMoves}</div><div class="mini-stat-lbl">moves</div></div>
+          <div class="mini-stat"><div class="mini-stat-val c-green">${distance.toFixed(1)}</div><div class="mini-stat-lbl">dist</div></div>
+          <div class="mini-stat"><div class="mini-stat-val c-purple">${left}</div><div class="mini-stat-lbl">left</div></div>
+          <div class="mini-stat"><div class="mini-stat-val c-orange">${right}</div><div class="mini-stat-lbl">right</div></div>
+        </div>
+      `;
+      container.innerHTML = "";
+      container.appendChild(frag);
+    }
+
+    function renderCompletedMissions() {
+      const container = document.getElementById("mission-history-list");
+      if (!container) return;
+      container.innerHTML = "";
+      for (const m of completedMissions) {
+        const result = m.result || "success";
+        const resultClass =
+          result === "success" ? "result-success" :
+          result === "aborted" ? "result-aborted" :
+          "result-running";
+        const resultText =
+          result === "success" ? "SUCCESS" :
+          result === "aborted" ? "ABORTED" :
+          "IN PROGRESS";
+        const card = document.createElement("div");
+        card.className = "mission-card";
+        card.innerHTML = `
+          <div class="mission-card-top">
+            <span class="mission-id">${m.missionId}</span>
+            <span class="result-badge ${resultClass}">${resultText}</span>
+          </div>
+          <div class="mission-meta">
+            <span>PUPPER-01</span>
+            <span>maze_run</span>
+            <span>${m.durationText} · ${m.endStamp || "recent"}</span>
+          </div>
+          <div class="mission-mini-bar">
+            <div class="mini-stat"><div class="mini-stat-val c-blue">${m.moves}</div><div class="mini-stat-lbl">moves</div></div>
+            <div class="mini-stat"><div class="mini-stat-val c-green">${m.distance.toFixed(1)}</div><div class="mini-stat-lbl">dist</div></div>
+            <div class="mini-stat"><div class="mini-stat-val c-purple">${m.left}</div><div class="mini-stat-lbl">left</div></div>
+            <div class="mini-stat"><div class="mini-stat-val c-orange">${m.right}</div><div class="mini-stat-lbl">right</div></div>
+          </div>
+        `;
+        container.appendChild(card);
+      }
+    }
+
+    function finalizeCurrentMission(endTimestamp, result = "success") {
+      if (!missionStats.firstTimestamp || missionStats.totalMoves === 0) return;
+      const startMs = new Date(missionStats.firstTimestamp).getTime();
+      const endMs = endTimestamp ? new Date(endTimestamp).getTime() : Date.now();
+      const durationSec = Number.isFinite(startMs) && Number.isFinite(endMs) ? Math.max(0, Math.round((endMs - startMs) / 1000)) : 0;
+      const missionId = `MISSION_${String(completedMissions.length + 1).padStart(3, "0")}`;
+
+      completedMissions.unshift({
+        missionId,
+        moves: missionStats.totalMoves,
+        distance: missionStats.totalMoves,
+        left: missionStats.left,
+        right: missionStats.right,
+        durationText: formatRelative(durationSec),
+        endStamp: endTimestamp || "",
+        result,
+      });
+      renderCompletedMissions();
+      updateStatsBarUI();
+    }
+
+    async function loadRecentMissions(limit = 0) {
+      try {
+        const res = await fetch(`${apiBase}/recent_missions?limit=${encodeURIComponent(limit)}`);
+        if (!res.ok) throw new Error(`missions HTTP ${res.status}`);
+        const payload = await res.json();
+        const items = Array.isArray(payload.items) ? payload.items : [];
+        completedMissions.length = 0;
+        for (const m of items) {
+          completedMissions.push({
+            missionId: m.mission_id || "MISSION",
+            moves: m.moves_total || 0,
+            distance: Number(m.distance_traveled || m.moves_total || 0),
+            left: m.moves_left_turn || 0,
+            right: m.moves_right_turn || 0,
+            durationText: m.duration_seconds ? formatRelative(m.duration_seconds) : "—",
+            endStamp: m.end_time || "",
+            result: m.mission_result || "in_progress",
+          });
+        }
+        renderCompletedMissions();
+        updateStatsBarUI();
+      } catch (e) {
+        console.error("Failed to load mission history:", e);
+      }
+    }
+
+    function resetForNextMission() {
+      missionStats.totalMoves = 0;
+      missionStats.straight = 0;
+      missionStats.left = 0;
+      missionStats.right = 0;
+      missionStats.reverse = 0;
+      missionStats.lastGoalTimestamp = null;
+      missionStats.firstTimestamp = null;
+      missionStats.goalReached = false;
+      missionStats.missionLabel = "MAZE_RUN_ACTIVE";
+      missionStats.currentResult = "in_progress";
+      updateMoveBreakdownUI();
+      updateAiInsightUI();
+      updateStatsBarUI();
+      renderCurrentMissionCard();
+    }
+
+    function formatRelative(seconds) {
+      const s = Math.max(0, seconds);
+      if (s < 60) return `${s}s`;
+      const m = Math.round(s / 60);
+      if (m < 60) return `${m}m`;
+      const h = Math.round(m / 60);
+      if (h < 24) return `${h}h`;
+      const d = Math.round(h / 24);
+      if (d < 7) return `${d}d`;
+      const w = Math.round(d / 7);
+      if (w < 4) return `${w}w`;
+      const mo = Math.round(d / 30);
+      return `${mo}mo`;
+    }
+
+    function applyTelemetryToStats(data) {
+      if (!data || data.event_type !== "player_move") return;
+      missionStats.totalMoves += 1;
+      const dir = (data.move_dir || "").toLowerCase();
+      if (dir === "forward") missionStats.straight += 1;
+      else if (dir === "left") missionStats.left += 1;
+      else if (dir === "right") missionStats.right += 1;
+      else if (dir === "reverse" || dir === "backward") missionStats.reverse += 1;
+
+      if (data.goal_reached) {
+        missionStats.lastGoalTimestamp = data.timestamp || missionStats.lastGoalTimestamp;
+        missionStats.missionLabel = "MAZE_RUN_COMPLETE";
+        missionStats.currentResult = "success";
+      }
+
+       if (data.timestamp && !missionStats.firstTimestamp) {
+         missionStats.firstTimestamp = data.timestamp;
+       }
+       if (data.timestamp) {
+         const ms = new Date(data.timestamp).getTime();
+         if (!Number.isNaN(ms)) missionStats._lastSeenMs = ms;
+       } else {
+         missionStats._lastSeenMs = Date.now();
+       }
+
+      // Battery: prefer actual telemetry value, fallback to demo drain model.
+      const incomingBattery =
+        data?.robot?.battery_pct ??
+        data?.robot?.battery ??
+        data?.battery_pct ??
+        data?.battery;
+      const prevBattery = Number.isFinite(missionStats.batteryPct) ? missionStats.batteryPct : null;
+      if (typeof incomingBattery === "number" && Number.isFinite(incomingBattery)) {
+        missionStats.batteryPct = incomingBattery;
+      } else {
+        // Demo fallback: drain very slowly as moves increase.
+        missionStats.batteryPct = Math.max(5, 82 - missionStats.totalMoves * 0.08);
+      }
+
+      const chargeRaw =
+        data?.robot?.is_charging ??
+        data?.robot?.charging ??
+        data?.is_charging ??
+        data?.charging ??
+        null;
+      const batteryStateRaw = (
+        data?.robot?.battery_state ??
+        data?.robot?.battery_status ??
+        data?.battery_state ??
+        data?.battery_status ??
+        ""
+      ).toString().toLowerCase();
+      if (typeof chargeRaw === "boolean") {
+        missionStats.batteryCharging = chargeRaw;
+      } else if (batteryStateRaw.includes("charg")) {
+        missionStats.batteryCharging = true;
+      } else if (batteryStateRaw.includes("discharg")) {
+        missionStats.batteryCharging = false;
+      } else if (prevBattery != null && Number.isFinite(missionStats.batteryPct)) {
+        // Fallback inference when explicit charging flag isn't present.
+        const delta = missionStats.batteryPct - prevBattery;
+        if (delta > 0.2) missionStats.batteryCharging = true;
+        else if (delta < -0.2) missionStats.batteryCharging = false;
+      }
+
+      const pct = Math.max(0, Math.min(100, Number(missionStats.batteryPct) || 0));
+      if (pct >= 99) {
+        missionStats.batteryStatusLabel = "Full";
+      } else if (missionStats.batteryCharging === true) {
+        missionStats.batteryStatusLabel = "Charging";
+      } else if (pct <= 20) {
+        missionStats.batteryStatusLabel = "Low";
+      } else if (missionStats.batteryCharging === false) {
+        missionStats.batteryStatusLabel = "Discharging";
+      } else {
+        missionStats.batteryStatusLabel = "Unknown";
+      }
+
+      // Mission label: prefer payload fields, fallback to inferred mission state.
+      missionStats.missionLabel =
+        data?.mission_type ||
+        data?.mission_id ||
+        data?.mission ||
+        (missionStats.lastGoalTimestamp ? "MAZE_RUN_COMPLETE" : "MAZE_RUN_ACTIVE");
+
+      if (data?.mission_result === "aborted") {
+        missionStats.currentResult = "aborted";
+      } else if (data?.mission_result === "success") {
+        missionStats.currentResult = "success";
+      } else if (data?.mission_result === "in_progress") {
+        missionStats.currentResult = "in_progress";
+      }
+
+      updateMoveBreakdownUI();
+      updateAiInsightUI();
+      updateStatsBarUI();
+      renderCurrentMissionCard();
+      updateRobotHealthUI();
+
+      if (data.goal_reached && !missionStats.goalReached) {
+        missionStats.goalReached = true;
+        finalizeCurrentMission(data.timestamp, "success");
+        resetForNextMission();
+      }
+    }
+
+    function addTelemetryRow(data) {
+      const sid = (data?.session_id ?? "").toString();
+      const seq = data?.input?.move_sequence ?? "";
+      const ts = data?.timestamp ?? "";
+      const key = `${sid}|${seq}|${ts}`;
+      if (seenTelemetryKeys.has(key)) return;
+      seenTelemetryKeys.add(key);
+
+      // Create a new row
+      const row = document.createElement("div");
+      row.className = "telem-row";
+
+      // Map move_dir to badge class and label
+      let dirClass = "";
+      let dirLabel = "";
+      switch(data.move_dir) {
+        case "forward": dirClass = "dir-straight"; dirLabel = "FORWARD"; break;
+        case "left":    dirClass = "dir-left";     dirLabel = "LEFT";    break;
+        case "right":   dirClass = "dir-right";    dirLabel = "RIGHT";   break;
+        case "reverse":
+        case "backward": dirClass = "dir-reverse";  dirLabel = "REVERSE"; break;
+        default: dirClass = ""; dirLabel = (data.move_dir || ""); break;
+      }
+
+      row.innerHTML = `
+      <span class="seq">${data?.input?.move_sequence ?? ""}</span>
+      <span style="font-size:11px;">PUPPER-01</span>
+      <span><span class="dir-badge ${dirClass}">${dirLabel}</span></span>
+      <span style="font-family:monospace; font-size:11px;">
+        (${data?.player?.position?.x ?? ""}, ${data?.player?.position?.y ?? ""})
+      </span>
+      <span class="${data.goal_reached ? "goal-yes" : "goal-no"}">
+        ${data.goal_reached ? "✓ YES" : "—"}
+      </span>
+      <span class="telem-ts">${data.timestamp ?? ""}</span>
+    `;
+
+      // Insert new row at top (below header)
+      const header = panelBody.querySelector(".telem-row.header");
+      if (header) {
+        panelBody.insertBefore(row, header.nextSibling);
+      }
+
+      // Keep only the 200 most recent telemetry rows
+      const rows = panelBody.querySelectorAll(".telem-row:not(.header)");
+      if (rows.length > 200) {
+        rows[rows.length - 1].remove();
+      }
+
+      applyTelemetryToStats(data);
+    }
+
+    async function loadRecent(limit = 100, page = 1) {
+      try {
+        const res = await fetch(`${apiBase}/recent?limit=${encodeURIComponent(limit)}&page=${encodeURIComponent(page)}`);
+        if (!res.ok) throw new Error(`recent HTTP ${res.status}`);
+        const payload = await res.json();
+        const items = Array.isArray(payload.items) ? payload.items : [];
+
+        // `items` is most-recent-first; insert oldest-first so we preserve ordering with newest at top.
+        for (const item of items.slice().reverse()) {
+          addTelemetryRow(item);
+        }
+      } catch (e) {
+        console.error("Failed to load recent moves:", e);
+      }
+    }
+
+    // Load initial page from maze_moves.log
+    loadRecent(100, 1);
+    loadRecentMissions(0);
+    // Remove static sample cards; mission history is now fully data-driven.
+    const missionHistoryBody = document.querySelector(".history-panel .panel-body");
+    if (missionHistoryBody) {
+      missionHistoryBody.querySelectorAll(":scope > .mission-card").forEach((el) => el.remove());
+    }
+
+    // Poll for new telemetry so the dashboard updates automatically (no manual refresh).
+    let pollInFlight = false;
+    async function pollRecent() {
+      if (pollInFlight) return;
+      pollInFlight = true;
+      try {
+        await loadRecent(100, 1);
+      } finally {
+        pollInFlight = false;
+      }
+    }
+    setInterval(pollRecent, 3000);
+
+    function setConnIndicator(elId, ok, detailText) {
+      const el = document.getElementById(elId);
+      if (!el) return;
+      const dot = el.querySelector(".footer-dot");
+      if (dot) {
+        dot.classList.remove("dot-green", "dot-red", "dot-yellow");
+        dot.classList.add(ok ? "dot-green" : "dot-red");
+      }
+      const text = el.querySelector(".conn-text");
+      if (text) text.textContent = detailText;
+    }
+
+    function setUpstreamSummary(logOk, aiOk) {
+      const el = document.getElementById("upstream-summary");
+      if (!el) return;
+      el.classList.remove("up-ok", "up-partial", "up-down");
+      if (logOk && aiOk) {
+        el.classList.add("up-ok");
+        el.textContent = "LOGGER + AI ONLINE";
+      } else if (logOk || aiOk) {
+        el.classList.add("up-partial");
+        el.textContent = "PARTIAL OUTAGE";
+      } else {
+        el.classList.add("up-down");
+        el.textContent = "LOGGER + AI OFFLINE";
+      }
+    }
+
+    async function refreshUpstreamStatus() {
+      try {
+        const res = await fetch(`${apiBase}/upstream_status`);
+        if (!res.ok) throw new Error(`status HTTP ${res.status}`);
+        const s = await res.json();
+
+        const logOk = !!s?.logging_server?.ok;
+        const logLat = s?.logging_server?.latency_ms;
+        setConnIndicator(
+          "conn-logging",
+          logOk,
+          logOk
+            ? `Logging connected · ${s.logging_server.host}:${s.logging_server.port} · ${logLat}ms`
+            : `Logging offline · ${s?.logging_server?.host ?? ""}:${s?.logging_server?.port ?? ""}`
+        );
+
+        const aiOk = !!s?.ai_server?.ok;
+        const aiLat = s?.ai_server?.latency_ms;
+        setConnIndicator(
+          "conn-ai",
+          aiOk,
+          aiOk
+            ? `AI connected · ${s.ai_server.host}:${s.ai_server.port} · ${aiLat}ms`
+            : `AI offline · ${s?.ai_server?.host ?? ""}:${s?.ai_server?.port ?? ""}`
+        );
+        setUpstreamSummary(logOk, aiOk);
+      } catch (e) {
+        setConnIndicator("conn-logging", false, "Logging status unavailable");
+        setConnIndicator("conn-ai", false, "AI status unavailable");
+        setUpstreamSummary(false, false);
+      }
+    }
+
+    refreshUpstreamStatus();
+    setInterval(refreshUpstreamStatus, 5000);
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.event_type === "heartbeat") return;
+      addTelemetryRow(data);
+    };
+
+    ws.onopen = () => console.log("WebSocket connected!");
+    ws.onclose = () => console.log("WebSocket closed.");
+    ws.onerror = (err) => console.error("WebSocket error:", err);
+
+    // Keep duration and last-seen counters fresh in real time.
+    setInterval(() => {
+      // If mission is active but no telemetry for a while, mark it aborted.
+      if (missionStats.firstTimestamp && !missionStats.goalReached && missionStats.currentResult !== "aborted") {
+        const lastTs = missionStats._lastSeenMs || Date.now();
+        const idleSec = Math.max(0, Math.round((Date.now() - lastTs) / 1000));
+        if (idleSec > 45) {
+          missionStats.currentResult = "aborted";
+          missionStats.missionLabel = "MAZE_RUN_ABORTED";
+          finalizeCurrentMission(new Date().toISOString(), "aborted");
+          resetForNextMission();
+        }
+      }
+      updateStatsBarUI();
+      updateRobotHealthUI();
+    }, 1000);
+  });
+</script>
 
 <!-- ── HEADER ── -->
 <header>
@@ -379,8 +1062,9 @@
     <span class="tag">Team 1 · Spring 2026</span>
   </h1>
   <div class="header-meta">
-    <span>Logging: 10.170.8.101</span>
-    <span>AI: 10.170.8.109</span>
+    <span>Logging: 10.170.8.130:8443</span>
+    <span>Mini-Pupper: 10.170.8.109:8443</span>
+    <span id="upstream-summary" class="upstream-pill up-down">LOGGER + AI OFFLINE</span>
     <div class="live-badge"><div class="dot"></div> LIVE</div>
   </div>
 </header>
@@ -394,31 +1078,35 @@
       <div class="section-label">Robot Health</div>
 
       <!-- Robot 1 -->
-      <div class="robot-card">
+      <div class="robot-card" id="robot-card-pupper-01">
         <div class="robot-card-header">
           <span class="robot-name">PUPPER-01</span>
-          <span class="status-badge status-active">ACTIVE</span>
+          <span class="status-badge status-active" id="robot-status-badge">ACTIVE</span>
         </div>
         <div class="robot-metrics">
           <div>
             <div class="robot-metric-label">Battery</div>
-            <div class="robot-metric-value c-green">82%</div>
+            <div class="robot-metric-value c-green" id="robot-battery-value">82%</div>
           </div>
           <div>
             <div class="robot-metric-label">Mission</div>
-            <div class="robot-metric-value c-blue">MAZE_RUN</div>
+            <div class="robot-metric-value c-blue" id="robot-mission-value">MAZE_RUN</div>
           </div>
           <div>
             <div class="robot-metric-label">Last Seen</div>
-            <div class="robot-metric-value">0s ago</div>
+            <div class="robot-metric-value" id="robot-last-seen">—</div>
+          </div>
+          <div>
+            <div class="robot-metric-label">Charge</div>
+            <div class="robot-metric-value c-purple" id="robot-charge-value">Unknown</div>
           </div>
           <div>
             <div class="robot-metric-label">IP</div>
-            <div class="robot-metric-value" style="font-size:11px; font-family:monospace;">10.170.8.120</div>
+            <div class="robot-metric-value" style="font-size:11px; font-family:monospace;">10.170.8.109</div>
           </div>
         </div>
         <div class="battery-bar-bg">
-          <div class="battery-bar-fill bat-high" style="width:82%"></div>
+          <div class="battery-bar-fill bat-high" id="robot-battery-bar" style="width:82%"></div>
         </div>
       </div>
 
@@ -428,33 +1116,33 @@
     <div>
       <div class="section-label">Active Mission — Move Breakdown</div>
       <div class="move-breakdown" style="background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:12px;">
-        <div class="breakdown-row">
+        <div class="breakdown-row" id="mb-straight">
           <span class="breakdown-label" style="color:var(--blue);">Straight</span>
           <div class="breakdown-bar-bg">
-            <div class="breakdown-bar-fill" style="background:var(--blue); width:41%"></div>
+            <div class="breakdown-bar-fill" style="background:var(--blue); width:0%"></div>
           </div>
-          <span class="breakdown-count c-blue">47</span>
+          <span class="breakdown-count c-blue">0</span>
         </div>
-        <div class="breakdown-row">
+        <div class="breakdown-row" id="mb-left">
           <span class="breakdown-label" style="color:var(--purple);">Left Turn</span>
           <div class="breakdown-bar-bg">
-            <div class="breakdown-bar-fill" style="background:var(--purple); width:24%"></div>
+            <div class="breakdown-bar-fill" style="background:var(--purple); width:0%"></div>
           </div>
-          <span class="breakdown-count c-purple">27</span>
+          <span class="breakdown-count c-purple">0</span>
         </div>
-        <div class="breakdown-row">
+        <div class="breakdown-row" id="mb-right">
           <span class="breakdown-label" style="color:var(--orange);">Right Turn</span>
           <div class="breakdown-bar-bg">
-            <div class="breakdown-bar-fill" style="background:var(--orange); width:28%"></div>
+            <div class="breakdown-bar-fill" style="background:var(--orange); width:0%"></div>
           </div>
-          <span class="breakdown-count c-orange">32</span>
+          <span class="breakdown-count c-orange">0</span>
         </div>
-        <div class="breakdown-row">
+        <div class="breakdown-row" id="mb-reverse">
           <span class="breakdown-label" style="color:var(--red);">Reverse</span>
           <div class="breakdown-bar-bg">
-            <div class="breakdown-bar-fill" style="background:var(--red); width:7%"></div>
+            <div class="breakdown-bar-fill" style="background:var(--red); width:0%"></div>
           </div>
-          <span class="breakdown-count c-red">8</span>
+          <span class="breakdown-count c-red">0</span>
         </div>
       </div>
     </div>
@@ -462,15 +1150,13 @@
     <!-- AI Insight -->
     <div>
       <div class="section-label">AI RAG Insight</div>
-      <div style="background:var(--bg); border:1px solid #1f6feb55; border-radius:8px; padding:12px; font-size:12px; color:var(--muted); line-height:1.6;">
-        <span style="color:var(--blue); font-weight:600;">PUPPER-01</span> is taking
-        <span style="color:var(--orange);">40% more left turns</span> than average
-        for this maze configuration. Similar missions suggest a
-        <span style="color:var(--yellow);">sensor drift</span> issue on the left
-        proximity sensor. Recommend recalibration before next run.
+      <div id="ai-rag-box" style="background:var(--bg); border:1px solid #1f6feb55; border-radius:8px; padding:12px; font-size:12px; color:var(--muted); line-height:1.6;">
+        <span style="color:var(--muted);">
+          Waiting for live telemetry. Run a mission or send test moves to see AI-style insight here.
+        </span>
         <br><br>
-        <span style="color:var(--muted); font-size:10px;">
-          Source: 12 similar missions · Confidence: 87%
+        <span id="ai-rag-meta" style="color:var(--muted); font-size:10px;">
+          Source: none yet
         </span>
       </div>
     </div>
@@ -483,33 +1169,33 @@
     <div class="stats-bar">
       <div class="stat-cell">
         <span class="stat-label">Total Moves</span>
-        <span class="stat-value c-blue">114</span>
+        <span class="stat-value c-blue" id="stat-total-moves">0</span>
         <span class="stat-sub">this mission</span>
       </div>
       <div class="stat-cell">
         <span class="stat-label">Distance</span>
-        <span class="stat-value c-green">24.4</span>
+        <span class="stat-value c-green" id="stat-distance">0.0</span>
         <span class="stat-sub">units traveled</span>
       </div>
       <div class="stat-cell">
         <span class="stat-label">Duration</span>
-        <span class="stat-value c-yellow">31s</span>
+        <span class="stat-value c-yellow" id="stat-duration">0s</span>
         <span class="stat-sub">elapsed</span>
       </div>
       <div class="stat-cell">
         <span class="stat-label">Missions Run</span>
-        <span class="stat-value c-purple">8</span>
+        <span class="stat-value c-purple" id="stat-missions-run">1</span>
         <span class="stat-sub">this session</span>
       </div>
       <div class="stat-cell">
         <span class="stat-label">Success Rate</span>
-        <span class="stat-value c-green">75%</span>
-        <span class="stat-sub">6 of 8</span>
+        <span class="stat-value c-green" id="stat-success-rate">0%</span>
+        <span class="stat-sub" id="stat-success-sub">0 of 0</span>
       </div>
       <div class="stat-cell">
         <span class="stat-label">Robots Online</span>
-        <span class="stat-value c-orange">1/1</span>
-        <span class="stat-sub">active in swarm</span>
+        <span class="stat-value c-orange" id="stat-robots-online">0/1</span>
+        <span class="stat-sub" id="stat-robots-sub">active in swarm</span>
       </div>
     </div>
 
@@ -523,7 +1209,7 @@
             <div class="dot" style="width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 1.8s ease-in-out infinite;"></div>
             Live Move Telemetry
           </span>
-          <span style="font-size:11px; color:var(--muted);">mongo: maze.moves_pupbyte1 · redis: team1tt_pupbyte1</span>
+          <span style="font-size:11px; color:var(--muted);">mongo: team1ttmoves · redis: team1tt</span>
         </div>
         <div class="panel-body">
           <div class="telem-row header">
@@ -625,11 +1311,13 @@
       <div class="history-panel">
         <div class="panel-header">
           <span class="panel-title">Mission History</span>
-          <span style="font-size:11px; color:var(--muted);">maze.moves_pupbyte1</span>
+          <span style="font-size:11px; color:var(--muted);">mongo: team1ttmoves · redis: team1tt</span>
         </div>
         <div class="panel-body">
+          <div id="mission-history-current"></div>
+          <div id="mission-history-list"></div>
 
-          <div class="mission-card active">
+          <div class="mission-card">
             <div class="mission-card-top">
               <span class="mission-id">MISSION_008</span>
               <span class="result-badge result-running">IN PROGRESS</span>
@@ -781,13 +1469,13 @@
   <!-- ── FOOTER ── -->
   <footer class="footer">
     <div class="footer-left">
-      <div class="footer-item">
-        <div class="footer-dot dot-green"></div>
-        MongoDB connected · 10.170.8.101:8443
+      <div class="footer-item" id="conn-logging">
+        <div class="footer-dot dot-yellow"></div>
+        <span class="conn-text">Logging status…</span>
       </div>
-      <div class="footer-item">
-        <div class="footer-dot dot-green"></div>
-        Redis connected · 10.170.8.109:8443
+      <div class="footer-item" id="conn-ai">
+        <div class="footer-dot dot-yellow"></div>
+        <span class="conn-text">AI status…</span>
       </div>
     </div>
     <span>Penn State Abington · CMPSC &amp; IT · Spring 2026 · Team 1 (TuTh)</span>
