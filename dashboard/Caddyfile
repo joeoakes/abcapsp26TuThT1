@@ -1,0 +1,25 @@
+{
+  # For local demos, keep it simple.
+  # Caddy will generate a local CA + cert for https://localhost:8443
+  # (your browser may require trusting Caddy's local root CA).
+  local_certs
+}
+
+# Public HTTPS endpoint (demo)
+# - https://localhost:8443
+# - https://127.0.0.1:8443
+https://localhost:8443, https://127.0.0.1:8443 {
+  encode zstd gzip
+
+  # Static dashboard page
+  root * .
+  file_server
+
+  # FastAPI backend (HTTP) running locally
+  @api path /move /ingest /recent /upstream_status
+  reverse_proxy @api 127.0.0.1:8080
+
+  # WebSocket for live telemetry
+  reverse_proxy /telemetry 127.0.0.1:8080
+}
+
