@@ -2,6 +2,10 @@
 
 Real-time dashboard UI + FastAPI backend for live telemetry, mission history, robot health, and upstream connectivity status.
 
+![Mini-Pupper Mission Dashboard — Team 1, Spring 2026](dashboard-screenshot.png)
+
+*Live dashboard: robot health, move breakdown, telemetry table, mission history, stats bar, and upstream status.*
+
 ---
 
 ## Current Architecture
@@ -52,33 +56,37 @@ Default upstream hosts currently shown/used in this project:
 
 ---
 
-## Run Locally
-
-### 1) Start dashboard backend
+## Run locally (HTTPS — recommended)
 
 From repo root:
+
+```bash
+bash scripts/run_dashboard_https_local.sh
+```
+
+- **Public URL:** `https://127.0.0.1:8443/index.html` (or `https://localhost:8443/index.html`)
+- Caddy terminates TLS; FastAPI runs on **`127.0.0.1:8080`** internally.
+- If the browser warns about the certificate, run `caddy trust` once (or use `-k` with `curl`).
+
+Extra origins for CORS (optional):
+
+```bash
+export DASHBOARD_CORS_ORIGINS="https://your-laptop.example:8443"
+```
+
+### Optional: HTTP-only quick dev (not full HTTPS parity)
 
 ```bash
 python -m uvicorn dashboard.main:app --host 127.0.0.1 --port 8443
+python -m http.server 8000   # serve dashboard/ from repo root; open /dashboard/index.html?apiPort=8443
 ```
-
-### 2) Serve `index.html`
-
-From repo root:
-
-```bash
-python -m http.server 8000
-```
-
-Open:
-- `http://127.0.0.1:8000/dashboard/index.html?apiPort=8443`
 
 ---
 
-## Test Live Ingest
+## Test live ingest (HTTPS)
 
 ```bash
-curl -X POST http://127.0.0.1:8443/move \
+curl -sk -X POST https://127.0.0.1:8443/move \
   -H "Content-Type: application/json" \
   -d '{
     "event_type": "player_move",
