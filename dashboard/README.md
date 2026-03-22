@@ -2,7 +2,7 @@
 
 Real-time dashboard UI + FastAPI backend for live telemetry, mission history, robot health, and upstream connectivity status.
 
-![Mini-Pupper Mission Dashboard — Team 1, Spring 2026](Dashboard.png)
+![Mini-Pupper Mission Dashboard — Team 1, Spring 2026](docs/Dashboard.png)
 
 *Live dashboard: robot health, move breakdown, telemetry table, mission history, stats bar, and upstream status.*
 
