@@ -103,17 +103,20 @@ static void build_mission_json(
     const char* abort_reason
 );
 
-static void save_https_mission(const char* json, const char* mission_url);
-
 static void print_full_mission_json(
     const char* mission_id,
     const char* result,
     const char* abort_reason
 );
 
+static void save_https_mission(const char* json, const char* mission_url);
+
+static int http_post_json(const char* url, const char* json, char* out_resp, size_t out_resp_cap, long timeout_ms);
+
 /* ===========================
    ===== CURL HELPERS =========
    =========================== */
+
 // Callback to discard curl response body (prevents spam to stdout)
 static size_t discard_response(void* ptr, size_t size, size_t nmemb, void* userdata) {
     (void)ptr; (void)userdata;
@@ -143,13 +146,15 @@ static size_t write_to_mem(void* contents, size_t size, size_t nmemb, void* user
 }
 
 static int http_post_json(const char* url, const char* json, char* out_resp, size_t out_resp_cap, long timeout_ms) {
+    if (!url) return -1;
+
     CURL* curl = curl_easy_init();
     if (!curl) return -1;
 
     struct curl_slist* headers = NULL;
     headers = curl_slist_append(headers, "Content-Type: application/json");
 
-    // capture response
+    // capture response (optional)
     struct Memory mem;
     mem.buf = out_resp;
     mem.cap = out_resp_cap;
@@ -238,6 +243,7 @@ static void save_https_move(
 
     (void)http_post_json(HTTPS_URL, json, NULL, 0, 500L);
 
+    // Optional: print once to show program is alive
     if (!printed_status) {
         printf("{\"status\":\"ok\"}\n");
         printed_status = true;
@@ -672,11 +678,6 @@ static void regenerate(int* px, int* py, SDL_Window* win) {
 static void brain_send_init(void) {
     if (!g_brain_init_url) return;
 
-    // Build a JSON payload describing the maze walls for every cell.
-    // cells is row-major: y=0..H-1, x=0..W-1
-    // Example cell: {"walls":15}
-    //
-    // NOTE: size is safe: 21*15=315 cells, each cell ~ {"walls":15}, plus commas.
     char json[20000];
     int pos = 0;
 
@@ -716,48 +717,30 @@ static void brain_send_init(void) {
 
 static void parse_action(const char* json, char* action_out, size_t action_cap)
 {
-    if (!json || !action_out || action_cap == 0) {
-        return;
-    }
+    if (!json || !action_out || action_cap == 0) return;
 
     action_out[0] = '\0';
 
-    // Look for possible keys
     const char* key = strstr(json, "\"action\"");
     if (!key) key = strstr(json, "\"move\"");
     if (!key) key = strstr(json, "\"direction\"");
+    if (!key) return;
 
-    if (!key) {
-        return; // no recognized key
-    }
-
-    // Find the colon after the key
     const char* colon = strchr(key, ':');
     if (!colon) return;
-
-    // Move past colon
     colon++;
 
-    // Skip whitespace
     while (*colon == ' ' || *colon == '\t') colon++;
 
-    // Expect opening quote
     if (*colon != '\"') return;
     colon++;
 
-    // Extract value until next quote
     size_t i = 0;
     while (*colon && *colon != '\"' && i < action_cap - 1) {
         char c = *colon++;
-
-        // normalize to uppercase
-        if (c >= 'a' && c <= 'z') {
-            c = c - 'a' + 'A';
-        }
-
+        if (c >= 'a' && c <= 'z') c = (char)(c - 'a' + 'A');
         action_out[i++] = c;
     }
-
     action_out[i] = '\0';
 }
 
@@ -785,9 +768,7 @@ static bool autoplay_step(int* px, int* py, int* move_sequence, bool* won) {
     char act[16];
     parse_action(resp, act, sizeof(act));
 
-    if (strcmp(act, "DONE") == 0) {
-        return false;
-    }
+    if (strcmp(act, "DONE") == 0) return false;
 
     int dx = 0, dy = 0;
     if (strcmp(act, "UP") == 0) dy = -1;
@@ -802,10 +783,7 @@ static bool autoplay_step(int* px, int* py, int* move_sequence, bool* won) {
     if (dx == 0 && dy == 1)  { moved = try_move(px, py, 0, 1);  if (moved) moves_reverse++; }
     if (dx == -1 && dy == 0) { moved = try_move(px, py, -1, 0); if (moved) moves_left++; }
 
-    if (!moved) {
-        // LLM suggested illegal move (wall/bounds) — just ignore and keep polling.
-        return false;
-    }
+    if (!moved) return false;
 
     (*move_sequence)++;
     moves_total++;
@@ -873,10 +851,12 @@ int main(int argc, char** argv) {
     // Initialize libcurl globally (required before any curl calls)
     curl_global_init(CURL_GLOBAL_DEFAULT);
 
+    // Generate session UUID once
     uuid_t binuuid;
     uuid_generate_random(binuuid);
     uuid_unparse_lower(binuuid, session_id);
 
+    // Env URLs (telemetry + mission)
     g_logging_url = getenv("MAZE_LOGGING_URL");
     g_ai_url      = getenv("MAZE_AI_URL");
     g_mission_url = getenv("MAZE_MISSION_URL");
