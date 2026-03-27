@@ -2,9 +2,11 @@
 
 This guide covers: **power + SD card basics**, **finding the Mini Pupper IP**, and **SSH login**.
 
+Note: This document is written for **Mini Pupper 1** in our class setup (e.g., SSH user `minipupper1`). If you have **Mini Pupper 2**, start from the official docs: [Mini Pupper ROS2 Guide](https://minipupperdocs.readthedocs.io/en/latest/guide/ROS2Guide.html).
+
 ---
 
-## Hardware + safety checklist
+## Hardware + Safety checklist
 
 - **Power**:
   - Plug in the **USB‑C power cable** on the **right side** of the Mini Pupper to charge (and/or power) Mini Pupper 1.
@@ -37,7 +39,7 @@ This guide covers: **power + SD card basics**, **finding the Mini Pupper IP**, a
 
 ---
 
-## Find the Mini Pupper IP address
+## Find the Mini Pupper IP Address
 
 You can use any of these methods. Start with **mDNS/hostname** first (it’s the fastest when enabled), then try router/ARP scans.
 
@@ -151,7 +153,7 @@ nc -vz 192.168.1.42 22
 
 ## SSH into Mini Pupper 1
 
-### Prereqs
+### Prerequisites
 
 - Mini Pupper is powered on and connected to Wi‑Fi.
 - You have either its **IP address** (e.g., `192.168.1.42`) or a working `.local` hostname.
@@ -205,7 +207,7 @@ If this is a shared/default password, change it after you log in:
 passwd
 ```
 
-### Keeping the IP stable (recommended)
+### Keeping the IP Stable (Recommended)
 
 The IP can change any time Wi‑Fi reconnects (DHCP). The most cross‑OS way to keep it stable is to set a **DHCP reservation** on the router:
 
