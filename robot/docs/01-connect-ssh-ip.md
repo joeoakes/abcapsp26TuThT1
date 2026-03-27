@@ -47,6 +47,17 @@ You can use any of these methods. Start with **mDNS/hostname** first (it’s the
 
 If you already have a keyboard/monitor on the robot, or you’re already SSH’d in, these commands are the quickest.
 
+- **Using a monitor/keyboard (local console)**:
+  - Plug the Mini Pupper into power, then connect it to an external display + keyboard (so you can log into Ubuntu locally).
+  - Once you’re at a terminal, run `ip a` (or `ifconfig`) and read the Wi‑Fi interface IPv4 address.
+  - If the IP address isn’t showing up / Wi‑Fi isn’t connected yet, **rebooting** is usually safer than unplugging power:
+
+```bash
+sudo reboot
+```
+
+  - Power-cycling (unplug/replug) can work, but treat it as a **last resort** compared to a clean reboot/shutdown.
+
 - Using `ip` (recommended; typically installed by default):
 
 ```bash
