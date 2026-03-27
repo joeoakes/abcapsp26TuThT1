@@ -4,6 +4,11 @@ These docs explain how to connect to **Mini Pupper 1**, drive it with **ROS 2**,
 
 We primarily use **Ubuntu Linux**, but the connection/IP/SSH steps include **macOS** and **Windows** options too.
 
+If you have **Mini Pupper 2**, do **not** assume the same hardware layout, usernames, or ROS 2 bringup packages. Use the official docs as your starting point:
+
+- [Mini Pupper ROS2 Guide](https://minipupperdocs.readthedocs.io/en/latest/guide/ROS2Guide.html)
+- [Mini Pupper assembly/cover notes](https://minipupperdocs.readthedocs.io/en/latest/guide/Assembly/MiniPupper.html#cover-assembly)
+
 ---
 
 ## What you’re looking for
