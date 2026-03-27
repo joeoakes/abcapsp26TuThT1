@@ -1,8 +1,10 @@
 ## Troubleshooting
 
+Note: These notes are written for **Mini Pupper 1** in our class setup. For **Mini Pupper 2**, start from the official docs: [Mini Pupper ROS2 Guide](https://minipupperdocs.readthedocs.io/en/latest/guide/ROS2Guide.html).
+
 ---
 
-## Recommended: update the system (packages)
+## Recommended: Update the System (packages)
 
 Before troubleshooting anything, it’s a good idea to update packages on the Mini Pupper.
 
@@ -21,7 +23,7 @@ If you’re running tools on your **laptop**:
 
 ---
 
-## Quick hits
+## Quick Hits
 
 - **SSH times out**: robot not on Wi‑Fi, wrong IP, or it’s on a different subnet.
 - **Hostname `.local` doesn’t resolve**: mDNS not enabled on robot, or Windows lacks Bonjour; use router/IP scan.
