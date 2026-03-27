@@ -2,6 +2,8 @@
 
 This guide focuses on driving via `/cmd_vel` and keyboard teleop.
 
+Note: Written for **Mini Pupper 1** in our class setup. For **Mini Pupper 2** (different model selection / packages), start from the official docs: [Mini Pupper ROS2 Guide](https://minipupperdocs.readthedocs.io/en/latest/guide/ROS2Guide.html).
+
 ---
 
 ## Verify ROS 2 Environment
