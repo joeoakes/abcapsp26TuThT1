@@ -1,10 +1,12 @@
-## Camera setup + testing
+## Camera Setup & Testing
 
 This guide covers non-ROS checks, a recommended Python virtual environment workflow (to avoid NumPy/OpenCV issues), and ROS 2 camera viewing.
 
+Note: Written for **Mini Pupper 1** in our class setup. For **Mini Pupper 2** camera/stack differences, start from the official docs: [Mini Pupper ROS2 Guide](https://minipupperdocs.readthedocs.io/en/latest/guide/ROS2Guide.html).
+
 ---
 
-## Recommended: update the system (packages)
+## Recommended: Update the System (packages)
 
 Before doing camera setup, it’s a good idea to update packages on the Mini Pupper.
 
@@ -18,7 +20,7 @@ sudo apt autoremove -y
 
 ---
 
-## Recommended: use a Python virtual environment (NumPy/OpenCV compatibility)
+## Recommended: Use a Python virtual environment (NumPy/OpenCV compatibility)
 
 On the **robot** (Ubuntu), create and use a virtual environment for camera scripts:
 
@@ -68,7 +70,7 @@ ffplay /dev/video0
 
 ---
 
-## 2) Capture a raw frame → convert to PNG → copy to your laptop (recommended test)
+## 2) Capture a raw frame → convert to PNG → copy to your laptop (Recommended test)
 
 This is a good “sensor sanity check” when streaming tools are flaky. The goal is:
 
@@ -128,7 +130,7 @@ scp minipupper1@10.170.8.209:~/frame.png .
 
 ---
 
-## 3) ROS 2 camera node (generic approach)
+## 3) ROS 2 camera node (Generic approach)
 
 If your robot image includes `v4l2_camera`:
 
