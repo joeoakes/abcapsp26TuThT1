@@ -162,7 +162,7 @@ int main(void) {
     struct MHD_Daemon *daemon;
 	if (use_mtls) {
 		daemon = MHD_start_daemon(
-			MHD_USE_THREAD_PER_CONNECTION | MHD_USE_TLS,
+			MHD_USE_INTERNAL_POLLING_THREAD | MHD_USE_TLS,
 			DEFAULT_PORT,
 			NULL, NULL,
 			&handle_post, NULL,
@@ -175,7 +175,7 @@ int main(void) {
 			MHD_OPTION_END);
 	} else {
 		daemon = MHD_start_daemon(
-			MHD_USE_THREAD_PER_CONNECTION | MHD_USE_TLS,
+			MHD_USE_INTERNAL_POLLING_THREAD | MHD_USE_TLS,
 			DEFAULT_PORT,
 			NULL, NULL,
 			&handle_post, NULL,

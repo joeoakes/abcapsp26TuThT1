@@ -118,4 +118,65 @@ Also supported under `robot`:
 This repo includes local HTTPS reverse-proxy helpers (Caddy-based) under `scripts/` and `dashboard/Caddyfile`.
 Use these when you need dashboard access via `https://127.0.0.1:8443`.
 
+---
+
+## Running on Raspberry Pi Game Hat
+
+Start everything with these commands (SSH in as `pi@10.170.8.190`):
+
+```bash
+# Start dashboard backend + file server
+cd ~/abcapsp26TuThT1
+nohup python3 -m http.server 8000 > /dev/null 2>&1 &
+nohup uvicorn dashboard.main:app --host 0.0.0.0 --port 8080 > /dev/null 2>&1 &
+
+# Start X display
+nohup Xorg :0 vt1 > /tmp/xorg.log 2>&1 &
+sleep 5 && DISPLAY=:0 xhost +
+
+# Start maze app
+cd ~/abcapsp26TuThT1/maze
+DISPLAY=:0 MAZE_LOGGING_URL=https://10.170.8.130:8443/move \
+  MAZE_AI_URL=https://10.170.8.109:8443/move \
+  MAZE_TLS_INSECURE=1 \
+  nohup ./maze_sdl2_pi > /tmp/maze.log 2>&1 &
+```
+
+Open dashboard in browser:
+```
+http://10.170.8.190:8000/dashboard/index.html?apiPort=8080
+```
+
+---
+
+## Simulator (No Hardware Required)
+
+Simulates the Mini Pupper solving the maze and streams live telemetry to the dashboard:
+
+```bash
+# Start the dashboard first, then:
+python3 scripts/simulate_pupper.py --delay 0.3
+```
+
+Options:
+- `--delay 0.4` — seconds between moves (default 0.4)
+- `--seed 42` — fixed maze seed for repeatable runs
+- `--url http://127.0.0.1:8080/ingest` — custom ingest URL
+
+---
+
+## Systemd Services (Raspberry Pi)
+
+The dashboard runs as systemd services on the Pi so it survives reboots:
+
+```bash
+# Check status
+sudo systemctl status dashboard
+sudo systemctl status dashboard-files
+
+# Restart
+sudo systemctl restart dashboard
+sudo systemctl restart dashboard-files
+```
+
 
