@@ -851,12 +851,10 @@ int main(int argc, char** argv) {
     // Initialize libcurl globally (required before any curl calls)
     curl_global_init(CURL_GLOBAL_DEFAULT);
 
-    // Generate session UUID once
     uuid_t binuuid;
     uuid_generate_random(binuuid);
     uuid_unparse_lower(binuuid, session_id);
 
-    // Env URLs (telemetry + mission)
     g_logging_url = getenv("MAZE_LOGGING_URL");
     g_ai_url      = getenv("MAZE_AI_URL");
     g_mission_url = getenv("MAZE_MISSION_URL");
