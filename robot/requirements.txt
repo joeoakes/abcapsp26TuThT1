@@ -1,0 +1,8 @@
+fastapi>=0.100.0
+uvicorn>=0.22.0
+redis>=4.6.0
+pydantic>=2.0.0
+
+# ROS 2 deps (already present in your ROS 2 environment):
+#   rclpy
+#   geometry_msgs
