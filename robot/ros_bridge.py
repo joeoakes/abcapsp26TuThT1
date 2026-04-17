@@ -11,11 +11,14 @@ Start with:
     uvicorn ros_bridge:app --host 0.0.0.0 --port 5050
 
 Env vars:
-    REDIS_HOST  (default localhost)
-    REDIS_PORT  (default 6379)
-    ROS_BRIDGE_PORT  informational only — uvicorn controls the actual port
+    REDIS_HOST          (default localhost)
+    REDIS_PORT          (default 6379)
+    MAZE_STEP_DURATION  seconds for UP/DOWN moves (default 0.6)
+    MAZE_TURN_DURATION  seconds for LEFT/RIGHT turns (default 6.0)
+    ROS_BRIDGE_PORT     informational only — uvicorn controls the actual port
 """
 
+import asyncio
 import os
 import json
 import logging
@@ -29,7 +32,12 @@ import redis
 # ---------------------------------------------------------------------------
 REDIS_HOST    = os.getenv("REDIS_HOST", "localhost")
 REDIS_PORT    = int(os.getenv("REDIS_PORT", "6379"))
-REDIS_CHANNEL = "maze:ros:move"
+REDIS_CHANNEL = "maze_actions"
+
+# Must match the durations in ros_bridge_node.py so /move blocks for the
+# right amount of time and callers naturally wait for the robot to finish.
+STEP_DURATION = float(os.getenv("MAZE_STEP_DURATION", "0.6"))
+TURN_DURATION = float(os.getenv("MAZE_TURN_DURATION", "6.0"))
 
 VALID_ACTIONS = {"UP", "DOWN", "LEFT", "RIGHT", "DONE"}
 
@@ -57,6 +65,7 @@ class MoveRequest(BaseModel):
 class MoveResponse(BaseModel):
     status: str
     action: str
+    duration: float = 0.0  # seconds the robot spent executing this move
 
 
 # ---------------------------------------------------------------------------
@@ -68,7 +77,7 @@ def health():
 
 
 @app.post("/move", response_model=MoveResponse)
-def move(req: MoveRequest):
+async def move(req: MoveRequest):
     action = req.action.strip().upper()
 
     if action not in VALID_ACTIONS:
@@ -79,7 +88,7 @@ def move(req: MoveRequest):
 
     if action == "DONE":
         log.info("DONE received — no movement published")
-        return MoveResponse(status="done", action=action)
+        return MoveResponse(status="done", action=action, duration=0.0)
 
     payload = json.dumps({
         "action":     action,
@@ -95,4 +104,11 @@ def move(req: MoveRequest):
         log.error(f"Redis publish failed: {exc}")
         raise HTTPException(status_code=503, detail=f"Redis error: {exc}")
 
-    return MoveResponse(status="ok", action=action)
+    # Block until the robot has finished executing this move so callers
+    # (simulator, maze app) don't queue up commands faster than the robot
+    # can execute them.
+    duration = TURN_DURATION if action in ("LEFT", "RIGHT") else STEP_DURATION
+    await asyncio.sleep(duration)
+
+    log.info(f"Move complete: action={action} duration={duration}s")
+    return MoveResponse(status="ok", action=action, duration=duration)

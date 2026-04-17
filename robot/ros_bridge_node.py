@@ -17,19 +17,22 @@ import redis
 # ---------------------------------------------------------------------------
 LINEAR_SPEED = float(os.getenv("MAZE_STEP_LINEAR", "0.15"))       # m/s
 ANGULAR_SPEED = float(os.getenv("MAZE_STEP_ANGULAR", "0.8"))      # rad/s
-STEP_DURATION = float(os.getenv("MAZE_STEP_DURATION", "0.6"))     # seconds (legacy mode)
+STEP_DURATION = float(os.getenv("MAZE_STEP_DURATION", "0.6"))     # seconds for UP/DOWN
+TURN_DURATION = float(os.getenv("MAZE_TURN_DURATION", "6.0"))     # seconds for LEFT/RIGHT (1 cmd = 90°)
 TURN_90_DURATION = float(os.getenv("MAZE_TURN_90_DURATION", "0.85"))
 CELL_MOVE_DURATION = float(os.getenv("MAZE_CELL_MOVE_DURATION", "0.60"))
 ACTION_MODE = os.getenv("MAZE_ACTION_MODE", "grid_absolute").strip().lower()
 TOPIC = os.getenv("MAZE_CMD_VEL_TOPIC", "/cmd_vel")
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
 REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
-REDIS_CHANNEL = "maze:ros:move"
+REDIS_CHANNEL = "maze_actions"
 
-# Legacy direct action map
+# Simple mode action map.
+# linear.x is flipped from ROS convention because the Mini Pupper controller
+# treats negative linear.x as the physical forward direction.
 ACTION_MAP = {
-    "UP": (LINEAR_SPEED, 0.0),
-    "DOWN": (-LINEAR_SPEED, 0.0),
+    "UP": (-LINEAR_SPEED, 0.0),   # negative = physical forward
+    "DOWN": (LINEAR_SPEED, 0.0),  # positive = physical backward
     "RIGHT": (0.0, -ANGULAR_SPEED),  # clockwise
     "LEFT": (0.0, ANGULAR_SPEED),
 }
@@ -51,6 +54,9 @@ class MazeBridgeNode(Node):
         self.get_logger().info(f"Publishing to {TOPIC}")
         self.get_logger().info(
             f"ACTION_MODE={ACTION_MODE} LINEAR={LINEAR_SPEED} ANGULAR={ANGULAR_SPEED}"
+        )
+        self.get_logger().info(
+            f"STEP_DURATION={STEP_DURATION}s  TURN_DURATION={TURN_DURATION}s"
         )
 
     def publish_for_duration(self, linear_x: float, angular_z: float, duration_s: float) -> None:
@@ -108,10 +114,12 @@ class MazeBridgeNode(Node):
             return False
 
         lx, az = ACTION_MAP[action]
+        # Use TURN_DURATION for left/right so one command = one 90-degree turn
+        duration = TURN_DURATION if action in ("LEFT", "RIGHT") else STEP_DURATION
         self.get_logger().info(
-            f"Action={action} linear.x={lx} angular.z={az} dur={STEP_DURATION}s"
+            f"Action={action} linear.x={lx} angular.z={az} dur={duration}s"
         )
-        self.publish_for_duration(lx, az, STEP_DURATION)
+        self.publish_for_duration(lx, az, duration)
         return True
 
 

@@ -2,6 +2,63 @@
 - **build.sh** — Build all maze applications (SDL2 client, HTTPS Mongo/Redis/Mini-Pupper servers). Run from repo root: `./scripts/build.sh`
 - **gen_mtls_certs.sh** — Generate CA and client certificates for mTLS. Run from repo root: `./scripts/gen_mtls_certs.sh`. See `https/README.md` for mTLS usage.
 - **find_ai_brain.sh** — Probe localhost for AI brain `/init` and `/next` endpoints, then print a ready-to-run autoplay command.
+- **run_maze_local.sh** — Boot the full robot pipeline and open the maze on your laptop screen. See below.
+- **kill_maze.sh** — Kill everything started by `run_maze_local.sh`. See below.
+
+---
+
+## run_maze_local.sh — Full pipeline launcher
+
+Starts the entire stack and opens the maze UI on your laptop. Press **P** in the maze to enable AI autoplay — the robot will physically walk the maze.
+
+### What it does
+
+1. Starts the AI brain on the AI server (via `tmux`)
+2. Starts `ros_bridge` HTTP server (port 5050) and `ros_bridge_node` on the Mini Pupper
+3. Waits for `ros_bridge_node` to subscribe to Redis before proceeding
+4. Starts a local brain proxy on `localhost:9001` — relays `/init` and `/next` to the real brain, and for each `/next` also forwards the action to the Pupper's `ros_bridge` so the robot moves in sync
+5. Launches `maze/maze_sdl2` pointed at the proxy
+
+### Requirements (one-time)
+
+```bash
+brew install sshpass
+pip3 install fastapi uvicorn httpx
+```
+
+### Usage
+
+```bash
+bash scripts/run_maze_local.sh
+```
+
+### Controls
+
+| Key | Action |
+|-----|--------|
+| Arrow keys / WASD | Manual play |
+| P | Toggle AI autoplay (robot walks the maze) |
+| L | Open dashboard |
+| Q / Escape | Quit |
+
+---
+
+## kill_maze.sh — Tear everything down
+
+Kills all processes started by `run_maze_local.sh`:
+
+- Local brain proxy
+- Local maze app
+- Pupper `ros_bridge` + `ros_bridge_node`
+- AI brain tmux session (`maze_brain2`)
+
+### Usage
+
+```bash
+bash scripts/kill_maze.sh
+```
+
+---
 
 ---
 

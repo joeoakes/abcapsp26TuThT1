@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 """
 Mini Pupper maze solver simulator.
-Generates a random maze (same 21x15 grid as the real game), solves it with BFS,
-then streams telemetry to the dashboard as if the pupper is walking it live.
+Generates a random maze (same 21x15 grid as the real game), solves it using
+the AI brain (optional) or BFS fallback, streams telemetry to the dashboard,
+and forwards each move to the ros_bridge on the Mini Pupper (optional).
 
 Usage:
-    python3 scripts/simulate_pupper.py [--url http://127.0.0.1:8080/ingest] [--delay 0.4]
+    python3 scripts/simulate_pupper.py                          # BFS + dashboard only
+    python3 scripts/simulate_pupper.py --brain http://10.170.8.109:8001  # AI brain
+    python3 scripts/simulate_pupper.py --ros-bridge http://10.170.8.209:5050  # move robot
+    python3 scripts/simulate_pupper.py --brain http://10.170.8.109:8001 \\
+        --ros-bridge http://10.170.8.209:5050 --url http://10.170.8.190:8080/ingest
 """
 
 import argparse
@@ -18,6 +23,7 @@ from datetime import datetime, timezone
 
 try:
     import urllib.request as urlreq
+    import urllib.error
 except ImportError:
     import urllib.request as urlreq
 
@@ -82,46 +88,151 @@ def bfs_solve(walls, w, h):
     return path
 
 
-def post(url, payload):
+def post(url, payload, timeout=3):
     data = json.dumps(payload).encode()
     req = urlreq.Request(url, data=data, headers={"Content-Type": "application/json"}, method="POST")
     try:
-        with urlreq.urlopen(req, timeout=5) as r:
-            return r.status
+        with urlreq.urlopen(req, timeout=timeout) as r:
+            return json.loads(r.read().decode())
     except Exception as e:
-        print(f"  [warn] POST failed: {e}")
+        print(f"  [warn] POST failed ({url}): {e}")
         return None
 
 
-def run(url, delay, seed):
+# ── AI Brain client ──────────────────────────────────────────────────────────
+
+def walls_to_bitmask(cell_walls):
+    """Convert set-of-directions to N=1,E=2,S=4,W=8 bitmask."""
+    bits = 0
+    if "N" in cell_walls: bits |= 1
+    if "E" in cell_walls: bits |= 2
+    if "S" in cell_walls: bits |= 4
+    if "W" in cell_walls: bits |= 8
+    return bits
+
+
+def brain_init(brain_url, session_id, walls, w, h):
+    cells = [{"walls": walls_to_bitmask(walls[y][x])} for y in range(h) for x in range(w)]
+    payload = {
+        "session_id": session_id,
+        "width": w, "height": h,
+        "cells": cells,
+        "start_x": 0, "start_y": 0,
+        "goal_x": w - 1, "goal_y": h - 1,
+    }
+    resp = post(f"{brain_url}/init", payload)
+    return resp and resp.get("status") == "ok"
+
+
+def brain_next(brain_url, session_id, x, y):
+    resp = post(f"{brain_url}/next", {"session_id": session_id, "x": x, "y": y})
+    if resp:
+        return resp.get("action", "")
+    return ""
+
+
+def send_to_robot(ros_bridge_url, action, session_id, x, y):
+    """Send action to robot and block until the robot finishes executing it.
+
+    The /move endpoint on the bridge now sleeps for the action duration before
+    responding, so this call naturally synchronises with the physical robot.
+    Returns the duration (seconds) reported by the bridge, or 0 on failure.
+    """
+    if not ros_bridge_url or action in ("DONE", ""):
+        return 0.0
+    # Turns can take up to MAZE_TURN_DURATION (default 6 s); use a generous
+    # timeout so we don't cut off the response mid-wait.
+    resp = post(f"{ros_bridge_url}/move", {
+        "action": action,
+        "session_id": session_id,
+        "x": x, "y": y,
+    }, timeout=30)
+    return (resp or {}).get("duration", 0.0)
+
+
+def action_to_delta(action):
+    return {"UP": (0, -1), "DOWN": (0, 1), "LEFT": (-1, 0), "RIGHT": (1, 0)}.get(action, (0, 0))
+
+
+def run(url, delay, seed, brain_url=None, ros_bridge_url=None):
     session_id = str(uuid.uuid4())
     robot_id = "PUPPER-01"
-    print(f"Session : {session_id}")
-    print(f"Endpoint: {url}")
-    print(f"Delay   : {delay}s per move\n")
+    print(f"Session    : {session_id}")
+    print(f"Dashboard  : {url}")
+    print(f"AI Brain   : {brain_url or 'BFS fallback'}")
+    print(f"ROS Bridge : {ros_bridge_url or 'disabled (no robot movement)'}")
+    print()
 
     walls = generate_maze(MAZE_W, MAZE_H, seed=seed)
-    path  = bfs_solve(walls, MAZE_W, MAZE_H)
-    total = len(path) - 1  # number of moves
 
-    print(f"Maze solved in {total} moves. Starting stream...\n")
+    # If using AI brain, send /init
+    use_brain = bool(brain_url)
+    if use_brain:
+        ok = brain_init(brain_url, session_id, walls, MAZE_W, MAZE_H)
+        if not ok:
+            print("[warn] Brain /init failed — falling back to BFS")
+            use_brain = False
+
+    if not use_brain:
+        path = bfs_solve(walls, MAZE_W, MAZE_H)
+        total_bfs = len(path) - 1
+        print(f"BFS solved in {total_bfs} moves. Starting stream...\n")
+    else:
+        print(f"AI brain initialized. Starting stream (max 2000 steps)...\n")
 
     battery = 95.0
-    battery_drain = 0.3  # per move
+    battery_drain = 0.3
 
-    for seq, (x, y) in enumerate(path):
-        goal_reached = (x == MAZE_W - 1 and y == MAZE_H - 1)
+    x, y = 0, 0
+    gx, gy = MAZE_W - 1, MAZE_H - 1
+    seq = 0
+    max_steps = 2000
 
-        # Infer direction from previous position
-        move_dir = "forward"
-        if seq > 0:
-            px, py = path[seq - 1]
-            dx, dy = x - px, y - py
-            if   dx ==  1: move_dir = "right"
-            elif dx == -1: move_dir = "left"
-            elif dy == -1: move_dir = "forward"
-            elif dy ==  1: move_dir = "reverse"
+    # BFS path iterator (only used when not using brain)
+    path_iter = iter(bfs_solve(walls, MAZE_W, MAZE_H)[1:]) if not use_brain else None
 
+    while seq < max_steps:
+        goal_reached = (x == gx and y == gy)
+
+        if goal_reached:
+            print(f"\n  GOAL reached in {seq} moves!")
+            if ros_bridge_url:
+                send_to_robot(ros_bridge_url, "DONE", session_id, x, y)
+            mission_payload = {
+                "session_id": session_id,
+                "event_type": "mission_complete",
+                "robot_id": robot_id,
+                "result": "success",
+                "moves": seq,
+                "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            }
+            post(url, mission_payload)
+            break
+
+        # Get next action
+        if use_brain:
+            action = brain_next(brain_url, session_id, x, y)
+            if not action or action == "DONE":
+                print(f"\n  Brain returned {action!r} at ({x},{y}) — stopping.")
+                break
+            dx, dy = action_to_delta(action)
+            nx, ny = x + dx, y + dy
+            move_dir = {"UP": "forward", "DOWN": "reverse", "LEFT": "left", "RIGHT": "right"}.get(action, "forward")
+        else:
+            try:
+                nx, ny = next(path_iter)
+                dx, dy = nx - x, ny - y
+                action = {(0,-1):"UP",(0,1):"DOWN",(-1,0):"LEFT",(1,0):"RIGHT"}.get((dx,dy),"UP")
+                move_dir = {"UP":"forward","DOWN":"reverse","LEFT":"left","RIGHT":"right"}[action]
+            except StopIteration:
+                break
+
+        # Forward to robot — blocks until the robot finishes the move
+        if ros_bridge_url:
+            send_to_robot(ros_bridge_url, action, session_id, x, y)
+
+        x, y = nx, ny
+        seq += 1
         battery = max(5.0, battery - battery_drain)
 
         payload = {
@@ -129,50 +240,43 @@ def run(url, delay, seed):
             "event_type": "player_move",
             "robot_id": robot_id,
             "input": {
-                "device": "pupper_sim",
+                "device": "pupper_ai" if use_brain else "pupper_sim",
                 "move_sequence": seq,
                 "move_dir": move_dir,
+                "action": action,
             },
-            "player": {
-                "position": {"x": x, "y": y},
-            },
+            "player": {"position": {"x": x, "y": y}},
             "robot": {
                 "battery_pct": round(battery, 1),
                 "is_charging": False,
                 "battery_state": "Discharging",
             },
-            "goal_reached": goal_reached,
+            "goal_reached": False,
             "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         }
+        post(url, payload)
 
-        status = post(url, payload)
-        pct = int(seq / max(total, 1) * 100)
+        pct = min(99, int(seq / max_steps * 100)) if use_brain else int(seq / max(total_bfs, 1) * 100)
         bar = "#" * (pct // 5) + "-" * (20 - pct // 5)
-        print(f"\r  [{bar}] {pct:3d}%  move {seq:4d}/{total}  pos({x:2d},{y:2d})  bat {battery:.1f}%  {'GOAL!' if goal_reached else '     '}", end="", flush=True)
+        print(f"\r  [{bar}] step {seq:4d}  pos({x:2d},{y:2d})  action={action:<5}  bat {battery:.1f}%", end="", flush=True)
 
-        if goal_reached:
-            print()
-            # Send mission summary
-            mission_payload = {
-                "session_id": session_id,
-                "event_type": "mission_complete",
-                "robot_id": robot_id,
-                "result": "success",
-                "moves": total,
-                "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-            }
-            post(url, mission_payload)
-            break
+        # When a robot is attached the /move call already blocked for the full
+        # move duration, so just add a small inter-move buffer.  Without a
+        # robot, sleep the full delay so the telemetry stream isn't instant.
+        if ros_bridge_url:
+            time.sleep(max(0.1, delay))
+        else:
+            time.sleep(delay)
 
-        time.sleep(delay)
-
-    print(f"\nDone. {total} moves streamed to dashboard.")
+    print(f"\nDone. {seq} moves.")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Simulate Mini Pupper solving the maze")
-    parser.add_argument("--url",   default="http://127.0.0.1:8080/ingest", help="Dashboard ingest URL")
-    parser.add_argument("--delay", type=float, default=0.4,               help="Seconds between moves")
-    parser.add_argument("--seed",  type=int,   default=None,              help="Maze seed (random if omitted)")
+    parser.add_argument("--url",        default="http://127.0.0.1:8080/ingest",  help="Dashboard ingest URL")
+    parser.add_argument("--delay",      type=float, default=0.4,                 help="Seconds between moves")
+    parser.add_argument("--seed",       type=int,   default=None,                help="Maze seed (random if omitted)")
+    parser.add_argument("--brain",      default=None,                            help="AI brain base URL e.g. http://10.170.8.109:8001")
+    parser.add_argument("--ros-bridge", default=None, dest="ros_bridge",         help="ROS bridge URL e.g. http://10.170.8.209:5050")
     args = parser.parse_args()
-    run(args.url, args.delay, args.seed)
+    run(args.url, args.delay, args.seed, brain_url=args.brain, ros_bridge_url=args.ros_bridge)
