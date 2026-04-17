@@ -438,11 +438,11 @@ def llm_invoke(prompt: str) -> str:
     return (data.get("response") or "").strip()
 
 def build_planner_prompt(s: Dict[str, Any], x: int, y: int) -> str:
-    width, height = s[“width”], s[“height”]
-    cells = s[“cells”]
-    gx, gy = s[“goal_x”], s[“goal_y”]
-    session_id = s[“session_id”]
-    maze_sig = s.get(“maze_sig”, “”)
+    width, height = s["width"], s["height"]
+    cells = s["cells"]
+    gx, gy = s["goal_x"], s["goal_y"]
+    session_id = s["session_id"]
+    maze_sig = s.get("maze_sig", "")
 
     legal = legal_moves(width, height, cells, x, y)
 
@@ -450,40 +450,40 @@ def build_planner_prompt(s: Dict[str, Any], x: int, y: int) -> str:
     def safe_cell_walls(px: int, py: int) -> Optional[int]:
         if px < 0 or py < 0 or px >= width or py >= height:
             return None
-        return cells[py * width + px][“walls”]
+        return cells[py * width + px]["walls"]
 
     local = {
-        “cur”: safe_cell_walls(x, y),
-        “up”: safe_cell_walls(x, y - 1),
-        “down”: safe_cell_walls(x, y + 1),
-        “left”: safe_cell_walls(x - 1, y),
-        “right”: safe_cell_walls(x + 1, y),
+        "cur": safe_cell_walls(x, y),
+        "up": safe_cell_walls(x, y - 1),
+        "down": safe_cell_walls(x, y + 1),
+        "left": safe_cell_walls(x - 1, y),
+        "right": safe_cell_walls(x + 1, y),
     }
 
-    # keep tiny “tabu” memory (last few positions)
+    # keep tiny "tabu" memory (last few positions)
     tabu = get_last_positions(session_id, 10)
 
     # Pull relevant past experiences from RAG cache
-    past_context = “”
+    past_context = ""
     if ENABLE_RAG and maze_sig:
-        query = f”at ({x},{y}) heading to ({gx},{gy}) legal={legal}”
+        query = f"at ({x},{y}) heading to ({gx},{gy}) legal={legal}"
         try:
             docs = retrieve_experience(maze_sig, query, k=3)
             if docs:
                 snippets = []
                 for d in docs:
-                    t = d.get(“text”, “”)
+                    t = d.get("text", "")
                     if t:
-                        snippets.append(f”- {t}”)
+                        snippets.append(f"- {t}")
                 if snippets:
-                    past_context = “\npast_experience (from memory):\n” + “\n”.join(snippets)
+                    past_context = "\npast_experience (from memory):\n" + "\n".join(snippets)
         except Exception:
             pass
 
-    return f”””You are a maze planner.
+    return f"""You are a maze planner.
 Reply with VALID JSON ONLY. No extra text.
 
-Allowed moves: [“UP”,”DOWN”,”LEFT”,”RIGHT”].
+Allowed moves: ["UP","DOWN","LEFT","RIGHT"].
 You must choose a SHORT plan chunk.
 
 Constraints:
@@ -499,7 +499,7 @@ local_walls_bitmask={json.dumps(local)}
 recent_positions={tabu}{past_context}
 
 Output JSON exactly:
-{{“plan”:[“RIGHT”,”DOWN”],”reason”:”...”}}”””
+{{"plan":["RIGHT","DOWN"],"reason":"..."}}"""
 
 
 def llm_plan_chunk(s: Dict[str, Any], x: int, y: int) -> Tuple[List[str], str]:
