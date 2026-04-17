@@ -1,4 +1,4 @@
-## Mini Pupper 1 (Robot) Docs
+# Mini Pupper 1 (Robot) Docs
 
 These docs explain how to connect to **Mini Pupper 1**, drive it with **ROS 2**, and set up/test the **camera**.
 
@@ -22,3 +22,40 @@ If you have **Mini Pupper 2**, do **not** assume the same hardware layout, usern
 - **Troubleshooting**: `docs/04-troubleshooting.md`
   - recommended system update + quick common fixes
 
+---
+
+## AI Brain -> Mini Pupper quickstart
+
+If you want Mini Pupper to follow `maze_brain` decisions directly:
+
+1) On the AI-brain host, start maze_brain with robot forwarding:
+
+```bash
+cd /path/to/abcapsp26TuThT1
+bash scripts/start_maze_brain_forward_robot.sh
+```
+
+You can override the robot bridge endpoint:
+
+```bash
+ROBOT_BRIDGE_URL="http://10.170.8.209:5050" bash scripts/start_maze_brain_forward_robot.sh
+```
+
+1) On Mini Pupper, start the listener stack (bridge + ROS2 command node):
+
+```bash
+cd ~/abcapsp26TuThT1
+bash robot/start_minipupper_listener.sh
+```
+
+1) Tune motion to match virtual maze cell-by-cell behavior:
+
+```bash
+MAZE_TURN_90_DURATION=0.85 MAZE_CELL_MOVE_DURATION=0.60 bash robot/start_minipupper_listener.sh
+```
+
+1) Stop listeners:
+
+```bash
+bash robot/stop_minipupper_listener.sh
+```
