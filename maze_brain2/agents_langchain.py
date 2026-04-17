@@ -43,8 +43,8 @@ TABOO_EDGE_TTL_STEPS = int(os.getenv("TABOO_EDGE_TTL_STEPS", "30"))  # only used
 # Rate limit LLM calls (prevents runaway slowdowns)
 MAX_LLM_CALLS_PER_60S = int(os.getenv("MAX_LLM_CALLS_PER_60S", "10"))
 
-# Optional RAG (OFF by default for speed)
-ENABLE_RAG = os.getenv("ENABLE_RAG", "0").strip() == "1"
+# Optional RAG (ON by default — stores and retrieves maze experiences)
+ENABLE_RAG = os.getenv("ENABLE_RAG", "1").strip() == "1"
 
 MAX_HISTORY = int(os.getenv("MAX_HISTORY", "5000"))
 
@@ -438,9 +438,11 @@ def llm_invoke(prompt: str) -> str:
     return (data.get("response") or "").strip()
 
 def build_planner_prompt(s: Dict[str, Any], x: int, y: int) -> str:
-    width, height = s["width"], s["height"]
-    cells = s["cells"]
-    gx, gy = s["goal_x"], s["goal_y"]
+    width, height = s[“width”], s[“height”]
+    cells = s[“cells”]
+    gx, gy = s[“goal_x”], s[“goal_y”]
+    session_id = s[“session_id”]
+    maze_sig = s.get(“maze_sig”, “”)
 
     legal = legal_moves(width, height, cells, x, y)
 
@@ -448,23 +450,40 @@ def build_planner_prompt(s: Dict[str, Any], x: int, y: int) -> str:
     def safe_cell_walls(px: int, py: int) -> Optional[int]:
         if px < 0 or py < 0 or px >= width or py >= height:
             return None
-        return cells[py * width + px]["walls"]
+        return cells[py * width + px][“walls”]
 
     local = {
-        "cur": safe_cell_walls(x, y),
-        "up": safe_cell_walls(x, y - 1),
-        "down": safe_cell_walls(x, y + 1),
-        "left": safe_cell_walls(x - 1, y),
-        "right": safe_cell_walls(x + 1, y),
+        “cur”: safe_cell_walls(x, y),
+        “up”: safe_cell_walls(x, y - 1),
+        “down”: safe_cell_walls(x, y + 1),
+        “left”: safe_cell_walls(x - 1, y),
+        “right”: safe_cell_walls(x + 1, y),
     }
 
     # keep tiny “tabu” memory (last few positions)
-    tabu = get_last_positions(s["session_id"], 10)
+    tabu = get_last_positions(session_id, 10)
 
-    return f"""You are a maze planner.
+    # Pull relevant past experiences from RAG cache
+    past_context = “”
+    if ENABLE_RAG and maze_sig:
+        query = f”at ({x},{y}) heading to ({gx},{gy}) legal={legal}”
+        try:
+            docs = retrieve_experience(maze_sig, query, k=3)
+            if docs:
+                snippets = []
+                for d in docs:
+                    t = d.get(“text”, “”)
+                    if t:
+                        snippets.append(f”- {t}”)
+                if snippets:
+                    past_context = “\npast_experience (from memory):\n” + “\n”.join(snippets)
+        except Exception:
+            pass
+
+    return f”””You are a maze planner.
 Reply with VALID JSON ONLY. No extra text.
 
-Allowed moves: ["UP","DOWN","LEFT","RIGHT"].
+Allowed moves: [“UP”,”DOWN”,”LEFT”,”RIGHT”].
 You must choose a SHORT plan chunk.
 
 Constraints:
@@ -477,10 +496,10 @@ current=({x},{y})
 goal=({gx},{gy})
 legal_moves_from_current={legal}
 local_walls_bitmask={json.dumps(local)}
-recent_positions={tabu}
+recent_positions={tabu}{past_context}
 
 Output JSON exactly:
-{{"plan":["RIGHT","DOWN"],"reason":"..."}}"""
+{{“plan”:[“RIGHT”,”DOWN”],”reason”:”...”}}”””
 
 
 def llm_plan_chunk(s: Dict[str, Any], x: int, y: int) -> Tuple[List[str], str]:
@@ -641,6 +660,22 @@ def run_brain_step(session_id: str, x: int, y: int) -> str:
     action, reason = executor_decide(s, x, y)
 
     if action == "DONE":
+        # Cache the successful path so future runs on this maze can learn from it
+        if ENABLE_RAG:
+            try:
+                history = json.loads(r.get(f"maze:{session_id}:history") or "[]")
+                store_experience({
+                    "maze_sig": s.get("maze_sig", ""),
+                    "text": (
+                        f"Reached goal ({gx},{gy}) from ({x},{y}) in {len(history)} steps. "
+                        f"Last moves: {history[-10:]}. "
+                        f"maze size: {width}x{height}."
+                    ),
+                    "type": "goal_reached",
+                    "steps": len(history),
+                })
+            except Exception:
+                pass
         return "DONE"
 
     # -------------------------
@@ -648,6 +683,24 @@ def run_brain_step(session_id: str, x: int, y: int) -> str:
     # -------------------------
     if action == "ESCAPE":
         cur_step = len(json.loads(r.get(f"maze:{session_id}:history") or "[]"))
+
+        # Cache the stuck situation so future runs know to avoid this pattern
+        if ENABLE_RAG:
+            try:
+                recent_pos = get_last_positions(session_id, 6)
+                store_experience({
+                    "maze_sig": s.get("maze_sig", ""),
+                    "text": (
+                        f"Got stuck at ({x},{y}), reason={reason}. "
+                        f"Recent positions: {recent_pos}. "
+                        f"Goal is ({gx},{gy}), legal moves here: {legal_moves(width, height, cells, x, y)}."
+                    ),
+                    "type": "stuck",
+                    "pos": f"{x},{y}",
+                    "reason": reason,
+                })
+            except Exception:
+                pass
 
         move = bfs_escape_one_move(
             session_id=session_id,
