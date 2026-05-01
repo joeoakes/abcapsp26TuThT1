@@ -1,6 +1,11 @@
 // https/maze_https_minipupper.c
 // HTTPS server for Mini-Pupper v1.
 //
+// LEGACY MANUAL/BODY-RELATIVE CONTROLLER:
+// The supported AI maze path is robot/ros_bridge.py -> robot/ros_bridge_node.py.
+// This server maps left/right to in-place turns from telemetry move_dir values;
+// it does not implement absolute grid-cell movement for maze autoplay.
+//
 // Receives POST /move telemetry JSON (same schema as maze_sdl2 client),
 // parses the "move_dir" field, and publishes a geometry_msgs/msg/Twist
 // message to the ROS2 /cmd_vel topic so the Mini-Pupper moves.

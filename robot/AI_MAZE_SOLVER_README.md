@@ -108,6 +108,7 @@ Expected behavior:
 - Maze app prints `Autoplay: ENABLED`
 - AI init/next calls succeed
 - Mini Pupper moves one step per AI action
+- In `grid_absolute` mode, `LEFT`/`RIGHT` are maze west/east actions: the robot rotates to that absolute heading, then walks forward one cell.
 
 ---
 
@@ -130,10 +131,15 @@ Set these on Mini Pupper before starting listener:
 
 ```bash
 MAZE_ACTION_MODE=grid_absolute \
-MAZE_STEP_LINEAR=0.15 \
+MAZE_STEP_LINEAR=0.13 \
 MAZE_STEP_ANGULAR=0.8 \
-MAZE_TURN_90_DURATION=0.85 \
-MAZE_CELL_MOVE_DURATION=0.60 \
+MAZE_TURN_90_DURATION=2.05 \
+MAZE_CELL_MOVE_DURATION=1.40 \
+MAZE_REVERSE_CELL_MOVE_DURATION=1.40 \
+MAZE_CMD_HZ=15 \
+MAZE_FORWARD_SIGN=1.0 \
+MAZE_REVERSE_ON_OPPOSITE=1 \
+MAZE_SWAP_UP_DOWN=1 \
 bash robot/start_minipupper_listener.sh
 ```
 
@@ -141,6 +147,11 @@ Tune:
 
 - `MAZE_TURN_90_DURATION` for accurate 90-degree turns
 - `MAZE_CELL_MOVE_DURATION` for one-grid-cell forward distance
+- `MAZE_REVERSE_CELL_MOVE_DURATION` for one-grid-cell backward/reverse distance
+- `MAZE_FORWARD_SIGN` if the robot walks backward when it should walk forward
+- `MAZE_REVERSE_ON_OPPOSITE` to use a backward step instead of a 180-degree turn for opposite maze moves
+- `MAZE_SWAP_UP_DOWN` when the maze's `DOWN` action should be physical forward from wake-up heading
+- `MAZE_CMD_HZ` if the controller needs a different continuous command rate
 
 ---
 
@@ -170,8 +181,9 @@ Close maze window or press quit key.
   - Wrong port (use `8010` in this setup)
 - `Published action ... to 0 subscriber(s)` on robot:
   - `ros_bridge_node.py` not running or ROS env not sourced
+- `/move` returns HTTP 504:
+  - The HTTP bridge published the command but did not receive a matching Redis completion from `ros_bridge_node.py`
 - `No module named uvicorn` on AI server:
   - Activate `.venv` and install dependencies there
 - `No module named rag_memory`:
   - Use `PYTHONPATH=~/abcapsp26TuThT1/maze_brain` when launching uvicorn
-

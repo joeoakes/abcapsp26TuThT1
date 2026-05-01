@@ -19,6 +19,8 @@ Starts the entire stack and opens the maze UI on your laptop. Press **P** in the
 4. Starts a local brain proxy on `localhost:9001` — relays `/init` and `/next` to the real brain, and for each `/next` also forwards the action to the Pupper's `ros_bridge` so the robot moves in sync
 5. Launches `maze/maze_sdl2` pointed at the proxy
 
+The Mini Pupper bridge runs in `grid_absolute` mode by default: `UP`, `DOWN`, `LEFT`, and `RIGHT` are absolute maze directions. The robot rotates to the requested heading, publishes continuous `/cmd_vel` messages while walking one cell, then acknowledges completion before the maze advances. The launcher sets `MAZE_SWAP_UP_DOWN=1`, so the maze's `DOWN` action is physical forward from the robot's wake-up heading and `UP` is the opposite direction.
+
 ### Requirements (one-time)
 
 ```bash

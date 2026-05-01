@@ -16,6 +16,8 @@ See `telemetry.json` for a complete example. The fields are:
 - **session_id** — UUID identifying the play session
 - **move_dir** — Movement direction for Mini-Pupper (`"forward"`, `"backward"`, `"left"`, `"right"`, `"stop"`)
 
+Note: `move_dir` is legacy/body-relative telemetry. The supported AI maze robot path uses `action` values (`UP`, `DOWN`, `LEFT`, `RIGHT`, `DONE`) through `robot/ros_bridge.py` and `robot/ros_bridge_node.py`, where each action maps to an absolute maze-grid cell movement.
+
 ## Usage
 
 ### Maze SDL2 client → HTTPS servers
@@ -23,7 +25,7 @@ See `telemetry.json` for a complete example. The fields are:
 The `maze_sdl2` app sends telemetry on every move to:
 - **Logging server** (`maze_https_mongo`) — stores in MongoDB
 - **AI server** (`maze_https_redis`) — stores in Redis
-- **Mini-Pupper server** (`maze_https_minipupper`) — translates `move_dir` to ROS2 `/cmd_vel`
+- **Mini-Pupper server** (`maze_https_minipupper`) — legacy/manual server that translates body-relative `move_dir` to ROS2 `/cmd_vel`
 
 ### curl example
 

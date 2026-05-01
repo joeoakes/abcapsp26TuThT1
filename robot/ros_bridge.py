@@ -13,8 +13,7 @@ Start with:
 Env vars:
     REDIS_HOST          (default localhost)
     REDIS_PORT          (default 6379)
-    MAZE_STEP_DURATION  seconds for UP/DOWN moves (default 0.6)
-    MAZE_TURN_DURATION  seconds for LEFT/RIGHT turns (default 6.0)
+    MAZE_MOVE_ACK_TIMEOUT seconds to wait for ros_bridge_node completion (default 30)
     ROS_BRIDGE_PORT     informational only — uvicorn controls the actual port
 """
 
@@ -22,6 +21,8 @@ import asyncio
 import os
 import json
 import logging
+import time
+import uuid
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -33,11 +34,8 @@ import redis
 REDIS_HOST    = os.getenv("REDIS_HOST", "localhost")
 REDIS_PORT    = int(os.getenv("REDIS_PORT", "6379"))
 REDIS_CHANNEL = "maze_actions"
-
-# Must match the durations in ros_bridge_node.py so /move blocks for the
-# right amount of time and callers naturally wait for the robot to finish.
-STEP_DURATION = float(os.getenv("MAZE_STEP_DURATION", "0.6"))
-TURN_DURATION = float(os.getenv("MAZE_TURN_DURATION", "6.0"))
+RESULT_CHANNEL = "maze_action_results"
+ACK_TIMEOUT = float(os.getenv("MAZE_MOVE_ACK_TIMEOUT", "30.0"))
 
 VALID_ACTIONS = {"UP", "DOWN", "LEFT", "RIGHT", "DONE"}
 
@@ -66,6 +64,7 @@ class MoveResponse(BaseModel):
     status: str
     action: str
     duration: float = 0.0  # seconds the robot spent executing this move
+    command_id: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -74,6 +73,46 @@ class MoveResponse(BaseModel):
 @app.get("/health")
 def health():
     return {"ok": True}
+
+
+def publish_and_wait_for_result(payload: dict, timeout_s: float) -> tuple[int, dict | None]:
+    command_id = payload["command_id"]
+    pubsub = r.pubsub(ignore_subscribe_messages=True)
+
+    try:
+        pubsub.subscribe(RESULT_CHANNEL)
+        subscribers = r.publish(REDIS_CHANNEL, json.dumps(payload))
+        log.info(
+            "Published command_id=%s action=%s to %d subscriber(s) pos=(%s,%s)",
+            command_id,
+            payload.get("action"),
+            subscribers,
+            payload.get("x"),
+            payload.get("y"),
+        )
+
+        deadline = time.monotonic() + max(0.0, timeout_s)
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return subscribers, None
+
+            message = pubsub.get_message(timeout=min(0.5, remaining))
+            if not message or message.get("type") != "message":
+                continue
+
+            try:
+                result = json.loads(message.get("data") or "{}")
+            except (TypeError, json.JSONDecodeError):
+                continue
+
+            if result.get("command_id") == command_id:
+                return subscribers, result
+    finally:
+        try:
+            pubsub.unsubscribe(RESULT_CHANNEL)
+        finally:
+            pubsub.close()
 
 
 @app.post("/move", response_model=MoveResponse)
@@ -86,29 +125,51 @@ async def move(req: MoveRequest):
             detail=f"Unknown action '{action}'. Must be one of {sorted(VALID_ACTIONS)}"
         )
 
-    if action == "DONE":
-        log.info("DONE received — no movement published")
-        return MoveResponse(status="done", action=action, duration=0.0)
-
-    payload = json.dumps({
+    payload = {
+        "command_id": uuid.uuid4().hex,
         "action":     action,
         "session_id": req.session_id,
         "x":          req.x,
         "y":          req.y,
-    })
+    }
 
     try:
-        subscribers = r.publish(REDIS_CHANNEL, payload)
-        log.info(f"Published action={action} to {subscribers} subscriber(s)  pos=({req.x},{req.y})")
+        subscribers, result = await asyncio.to_thread(
+            publish_and_wait_for_result,
+            payload,
+            ACK_TIMEOUT,
+        )
     except redis.RedisError as exc:
-        log.error(f"Redis publish failed: {exc}")
+        log.error("Redis publish/wait failed: %s", exc)
         raise HTTPException(status_code=503, detail=f"Redis error: {exc}")
 
-    # Block until the robot has finished executing this move so callers
-    # (simulator, maze app) don't queue up commands faster than the robot
-    # can execute them.
-    duration = TURN_DURATION if action in ("LEFT", "RIGHT") else STEP_DURATION
-    await asyncio.sleep(duration)
+    if result is None:
+        raise HTTPException(
+            status_code=504,
+            detail=(
+                f"Timed out waiting {ACK_TIMEOUT:.1f}s for robot ack "
+                f"command_id={payload['command_id']} subscribers={subscribers}"
+            ),
+        )
 
-    log.info(f"Move complete: action={action} duration={duration}s")
-    return MoveResponse(status="ok", action=action, duration=duration)
+    status = str(result.get("status") or "error")
+    duration = float(result.get("duration") or 0.0)
+
+    if status != "ok":
+        raise HTTPException(
+            status_code=502,
+            detail=f"Robot reported status={status} command_id={payload['command_id']}",
+        )
+
+    log.info(
+        "Move complete: command_id=%s action=%s duration=%.3fs",
+        payload["command_id"],
+        action,
+        duration,
+    )
+    return MoveResponse(
+        status=status,
+        action=action,
+        duration=duration,
+        command_id=payload["command_id"],
+    )

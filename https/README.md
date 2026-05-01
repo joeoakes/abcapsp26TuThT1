@@ -4,7 +4,9 @@ This directory contains three C HTTPS servers used in the project pipeline:
 
 - `maze_https_mongo` -> receives telemetry and stores in MongoDB
 - `maze_https_redis` -> receives telemetry/mission JSON and stores in Redis
-- `maze_https_minipupper` -> receives telemetry-style posts for Mini-Pupper flow/testing
+- `maze_https_minipupper` -> legacy/manual body-relative Mini-Pupper flow/testing
+
+For AI maze autoplay, use the Python bridge in `robot/` instead. It maps `UP`, `DOWN`, `LEFT`, and `RIGHT` to absolute maze-grid cell movement and waits for robot completion acknowledgements.
 
 All servers support TLS on `/move`, and support mTLS when `CA_FILE` is provided.
 
@@ -83,7 +85,7 @@ REDIS_PREFIX=team1tt \
 ./https/maze_https_redis
 ```
 
-### Mini-Pupper server
+### Mini-Pupper server (legacy/manual)
 
 ```bash
 CERT_FILE=https/certs/server.crt \

@@ -106,7 +106,7 @@ sshpass -p "$PUPPER_PASS" ssh \
   "kill -9 \$(ps aux | grep -E 'uvicorn ros_bridge|ros_bridge_node' | grep -v grep | awk '{print \$2}') 2>/dev/null; sleep 1
    nohup bash -c 'cd ~/abcapsp26TuThT1/robot && \
      REDIS_HOST=127.0.0.1 REDIS_PORT=6379 \
-     MAZE_STEP_DURATION=0.6 MAZE_TURN_DURATION=6.0 \
+     MAZE_MOVE_ACK_TIMEOUT=35.0 \
      python3 -m uvicorn ros_bridge:app --host 0.0.0.0 --port ${ROS_BRIDGE_PORT} \
      > /tmp/ros_bridge.log 2>&1' > /dev/null 2>&1 &
    sleep 2
@@ -126,10 +126,17 @@ cd /home/ubuntu/abcapsp26TuThT1/robot
 export ROS_DOMAIN_ID=42
 export REDIS_HOST=127.0.0.1
 export REDIS_PORT=6379
-export MAZE_STEP_LINEAR=0.15
+export MAZE_ACTION_MODE=grid_absolute
+export MAZE_STEP_LINEAR=0.13
 export MAZE_STEP_ANGULAR=0.8
-export MAZE_CELL_MOVE_DURATION=0.50
-export MAZE_TURN_90_DURATION=6.0
+export MAZE_CELL_MOVE_DURATION=1.40
+export MAZE_REVERSE_CELL_MOVE_DURATION=1.40
+export MAZE_TURN_90_DURATION=2.05
+export MAZE_CMD_HZ=15
+export MAZE_FORWARD_SIGN=1.0
+export MAZE_REVERSE_ON_OPPOSITE=1
+export MAZE_INITIAL_HEADING=0
+export MAZE_SWAP_UP_DOWN=1
 python3 ros_bridge_node.py > /tmp/ros_bridge_node.log 2>&1
 NODEEOF
 chmod +x /tmp/start_ros_node.sh
@@ -203,7 +210,7 @@ async def next(payload: dict):
                     "session_id": payload.get("session_id", ""),
                     "x": payload.get("x", 0),
                     "y": payload.get("y", 0),
-                }, timeout=30)
+                }, timeout=45)
         except Exception as e:
             print(f"[proxy] ros_bridge error: {e}")
     return data

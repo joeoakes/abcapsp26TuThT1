@@ -51,7 +51,17 @@ bash robot/start_minipupper_listener.sh
 1) Tune motion to match virtual maze cell-by-cell behavior:
 
 ```bash
-MAZE_TURN_90_DURATION=0.85 MAZE_CELL_MOVE_DURATION=0.60 bash robot/start_minipupper_listener.sh
+MAZE_ACTION_MODE=grid_absolute \
+MAZE_STEP_LINEAR=0.13 \
+MAZE_STEP_ANGULAR=0.8 \
+MAZE_TURN_90_DURATION=2.05 \
+MAZE_CELL_MOVE_DURATION=1.40 \
+MAZE_REVERSE_CELL_MOVE_DURATION=1.40 \
+MAZE_CMD_HZ=15 \
+MAZE_FORWARD_SIGN=1.0 \
+MAZE_REVERSE_ON_OPPOSITE=1 \
+MAZE_SWAP_UP_DOWN=1 \
+bash robot/start_minipupper_listener.sh
 ```
 
 1) Stop listeners:
@@ -94,7 +104,7 @@ Open a **new** SSH terminal on the Pupper:
 ssh ubuntu@10.170.8.209
 cd ~/abcapsp26TuThT1/robot
 REDIS_HOST=127.0.0.1 REDIS_PORT=6379 \
-MAZE_STEP_DURATION=0.6 MAZE_TURN_DURATION=6.0 \
+MAZE_MOVE_ACK_TIMEOUT=35.0 \
 python3 -m uvicorn ros_bridge:app --host 0.0.0.0 --port 5050
 ```
 
@@ -119,10 +129,16 @@ cd ~/abcapsp26TuThT1/robot
 ROS_DOMAIN_ID=42 \
 REDIS_HOST=127.0.0.1 \
 REDIS_PORT=6379 \
-MAZE_STEP_LINEAR=0.15 \
+MAZE_ACTION_MODE=grid_absolute \
+MAZE_STEP_LINEAR=0.13 \
 MAZE_STEP_ANGULAR=0.8 \
-MAZE_CELL_MOVE_DURATION=0.50 \
-MAZE_TURN_90_DURATION=6.0 \
+MAZE_CELL_MOVE_DURATION=1.40 \
+MAZE_REVERSE_CELL_MOVE_DURATION=1.40 \
+MAZE_TURN_90_DURATION=2.05 \
+MAZE_CMD_HZ=15 \
+MAZE_FORWARD_SIGN=1.0 \
+MAZE_REVERSE_ON_OPPOSITE=1 \
+MAZE_SWAP_UP_DOWN=1 \
 python3 ros_bridge_node.py
 ```
 
@@ -136,28 +152,29 @@ You should see:
 ### Step 4 — Send move commands from your laptop
 
 ```bash
-# Forward
+# Move one maze cell north
 curl -X POST http://10.170.8.209:5050/move \
   -H "Content-Type: application/json" \
   -d '{"action":"UP","session_id":"test","x":0,"y":0}'
 
-# Backward
+# Move one maze cell south
 curl -X POST http://10.170.8.209:5050/move \
   -H "Content-Type: application/json" \
   -d '{"action":"DOWN","session_id":"test","x":0,"y":0}'
 
-# Turn left (90°)
+# Move one maze cell west: rotate to west, then walk forward
 curl -X POST http://10.170.8.209:5050/move \
   -H "Content-Type: application/json" \
   -d '{"action":"LEFT","session_id":"test","x":0,"y":0}'
 
-# Turn right (90°)
+# Move one maze cell east: rotate to east, then walk forward
 curl -X POST http://10.170.8.209:5050/move \
   -H "Content-Type: application/json" \
   -d '{"action":"RIGHT","session_id":"test","x":0,"y":0}'
 ```
 
-> UP/DOWN return after ~0.6s. LEFT/RIGHT block for ~6s while the robot completes the full 90° turn.
+> In the default `grid_absolute` mode, `LEFT` and `RIGHT` are maze directions, not pure teleop turns. The robot rotates to the requested absolute heading and then walks one cell. If two consecutive actions point the same absolute direction, the robot walks forward only. Opposite-direction moves use a reverse step when `MAZE_REVERSE_ON_OPPOSITE=1`.
+> Set `MAZE_SWAP_UP_DOWN=1` when the maze's `DOWN` action should mean physical forward from the robot's wake-up heading and `UP` should mean the opposite direction.
 
 ---
 
@@ -177,12 +194,15 @@ Your laptop
 
 ### Timing reference
 
-| Action | linear.x | angular.z | Duration |
-|--------|----------|-----------|----------|
-| UP     | -0.15    | 0.0       | 0.50s    |
-| DOWN   | +0.15    | 0.0       | 0.50s    |
-| LEFT   | 0.0      | +0.8      | 6.0s     |
-| RIGHT  | 0.0      | -0.8      | 6.0s     |
+| Setting | Default | Meaning |
+|---------|---------|---------|
+| `MAZE_CMD_HZ` | `15.0` | Re-publish `/cmd_vel` at this rate during each segment |
+| `MAZE_FORWARD_SIGN` | `1.0` | Mini Pupper physical-forward sign for `linear.x` |
+| `MAZE_CELL_MOVE_DURATION` | `1.40` | Forward-walk duration for one maze cell |
+| `MAZE_REVERSE_CELL_MOVE_DURATION` | `1.40` | Backward-walk duration for opposite-direction maze moves |
+| `MAZE_TURN_90_DURATION` | `2.05` | Rotation duration for one 90-degree heading change |
+| `MAZE_REVERSE_ON_OPPOSITE` | `1` | Move backward for opposite-direction grid actions instead of turning 180 degrees |
+| `MAZE_SWAP_UP_DOWN` | `1` | Swap maze `UP` and `DOWN` headings so `DOWN` is physical forward from wake-up heading |
 
 ---
 

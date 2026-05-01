@@ -143,6 +143,55 @@ To generate CA and client certificates for **mTLS** (mutual TLS): `./scripts/gen
 
 ---
 
+## 🤖 Running the Physical Mini Pupper Maze Demo
+
+The working physical demo path is:
+
+```text
+maze/maze_sdl2 -> AI server A* brain -> Mini Pupper HTTP bridge -> Redis -> ROS2 /cmd_vel
+```
+
+Use the detailed runbook for the complete cold-start, reboot, operation, tuning, and troubleshooting steps:
+
+**[Mini Pupper AI Maze Runbook](docs/MINI_PUPPER_MAZE_RUNBOOK.md)**
+
+Current tuned behavior:
+
+- `DOWN` in the 2D maze moves the Mini Pupper physically forward from its wake-up heading.
+- `UP` is the opposite maze direction.
+- `LEFT` and `RIGHT` rotate to the requested absolute grid heading, then move one cell.
+- Consecutive moves in the same direction walk forward only.
+- The bridge waits for a Redis completion ack before the maze advances.
+
+Current calibrated values:
+
+```bash
+MAZE_ACTION_MODE=grid_absolute
+MAZE_STEP_LINEAR=0.13
+MAZE_STEP_ANGULAR=0.8
+MAZE_TURN_90_DURATION=2.05
+MAZE_CELL_MOVE_DURATION=1.40
+MAZE_REVERSE_CELL_MOVE_DURATION=1.40
+MAZE_CMD_HZ=15
+MAZE_FORWARD_SIGN=1.0
+MAZE_REVERSE_ON_OPPOSITE=1
+MAZE_INITIAL_HEADING=0
+MAZE_SWAP_UP_DOWN=1
+```
+
+Quick start from a clean Mini Pupper boot:
+
+```bash
+# 1. Start the Mini Pupper robot stack on the robot.
+ssh ubuntu@10.170.8.209 'cd /home/ubuntu/abcapsp26TuThT1 && git pull --ff-only && bash robot/start_minipupper_stack.sh'
+
+# 2. Start the AI server brain and local maze app using the exact commands in the runbook.
+```
+
+The supported robot path is the Python bridge under `robot/`. The C HTTPS Mini Pupper server is legacy/manual body-relative control and should not be used for AI maze autoplay.
+
+---
+
 ## 📦 Project Management & DevOps
 
 - All code hosted on **GitHub**
